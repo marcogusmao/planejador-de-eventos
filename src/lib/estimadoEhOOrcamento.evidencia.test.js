@@ -3,7 +3,7 @@
 //
 // Decisão do Marco, 27/07/2026, por questionário, com a conta na frente
 // (princípio 1 do CLAUDE.md). Ele foi avisado de que cifras a que estava
-// acostumado mudam — no evento medido o lucro "estimado" sai de R$ 168 mil para
+// acostumado mudam — no evento medido o lucro "estimado" sai de R$ 175 mil para
 // R$ 245 mil — e respondeu que as antigas eram o realizado disfarçado.
 //
 // ═══════════════════════════════════════════════════════════════════════════

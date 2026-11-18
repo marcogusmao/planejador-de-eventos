@@ -549,8 +549,8 @@ const formaCenariosConfig = (cfg) => {
 // já está lá, o campo vazio e o campo ausente — nenhum é tocado.
 //
 // Impacto medido no dado real (backup de 27/07/2026, lucro do pessimista):
-//   Marfim 09/05/26 ......... −75.182 → −30.224
-//   Marfim Casa Norte 05/07/25  −168.143 → −135.235
+//   Marfim 09/05/26 ......... −68.410 → −27.530
+//   Marfim Casa Norte 05/07/25  −152.870 → −122.960
 //   Brisa 05/12/25 ......... não muda (é benchmark, não tem lote)
 // (O Salao Sul, de campo vazio, muda pelo fallback do calc, não por aqui.)
 //
