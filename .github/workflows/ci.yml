@@ -1,0 +1,504 @@
+name: CI
+
+# Espelha a validação obrigatória do CLAUDE.md: testes verdes + build limpo.
+#
+# ── POR QUE O `push` SÓ VALE NA `main` (Marco, 30/08/2026, por questionário) ──
+#
+# Até esta data era `push:` e `pull_request:` sem recorte, "em qualquer branch".
+# Consequência medida em agosto/2026, contando os minutos de runner de verdade:
+#
+#     CI · push ............ 75 runs · 355 min · 34% do mês
+#     CI · pull_request .... 35 runs · 154 min · 15% do mês
+#
+# Todo commit numa ramificação com pull request aberto rodava a esteira DUAS
+# VEZES — trabalho idêntico, resultado idêntico. Conferido no HEAD do PR #94:
+# os quatro verificadores exigidos apareciam duplicados, um conjunto vindo do
+# `push` e outro do `pull_request`.
+#
+# ISSO NÃO ERA SÓ DESPERDÍCIO: em 30/08/2026 os créditos de Actions da conta
+# acabaram no meio do dia, e a `main` — que exige quatro verificadores — ficou
+# selada, porque trabalho nenhum conseguia rodar. Dos 1.051 minutos de agosto,
+# 34% foram esta duplicação e outros 34% foram as quatro rodadas de mutação que
+# morreram `cancelled` sem medir nada (consertadas no mesmo dia). Dois terços do
+# orçamento do mês foram gastos sem produzir resultado.
+#
+# O QUE NÃO AFROUXA, e foi conferido antes de mudar: os quatro verificadores que
+# a `main` exige continuam sendo produzidos pelo evento `pull_request`. A
+# proteção da linha principal segue valendo igual — o que some é a SEGUNDA cópia.
+#
+# O QUE MUDA DE COMPORTAMENTO, dito na cara: uma ramificação SEM pull request
+# aberto deixa de ter esteira. Hoje todo trabalho da casa vira pull request, e a
+# esteira LOCAL (`bash scripts/auditoria.sh`, 11 passos) cobre mais que esta.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Envio novo cancela a rodada superada da MESMA ramificação. Sem isto, três
+# commits seguidos deixam três esteiras inteiras terminando à toa.
+#
+# `cancel-in-progress: true` AQUI e `false` no mutacao-semanal.yml, e a diferença
+# é de propósito: nesta esteira o que importa é o veredito do commit MAIS NOVO —
+# a rodada velha ficou obsoleta no instante do envio. Já uma rodada de mutação
+# cancelada no meio não escreve o ponto de parada e o rodízio perde a vez, e por
+# isso lá a regra é a oposta. Cancelamento não é vermelho: quem lê um "cancelled"
+# aqui está vendo uma rodada SUPERADA, não uma reprovação.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  seguranca:
+    name: Segurança do pipeline (gitleaks + trava de dados, H3-M)
+    runs-on: ubuntu-latest
+    # H3-M (PLANO-HARDENING-3.md, itens 1 e 2): o CI não tinha scanner de
+    # segredo nem repetia a trava de dados do .githooks/pre-commit — os dois
+    # só valiam na máquina do Marco, e um `--no-verify` (ou um clone sem os
+    # hooks) passava batido. Job separado dos outros: barato, independente,
+    # não atrasa a esteira de testes (roda em paralelo).
+    steps:
+      - name: Baixar o código
+        # fetch-depth: 0 = histórico inteiro. As duas checagens abaixo
+        # precisam do range de commits do push, igual ao portão do golden.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # H3-M item 2: repete no CI a MESMA checagem que .githooks/pre-commit já
+      # faz na máquina do Marco — e, desde a Sessão H4-D (25/07/2026), "a mesma"
+      # deixou de ser promessa de manutenção e virou literalmente o mesmo arquivo.
+      #
+      # Antes, a lista de padrões vinha copiada à mão aqui dentro, e o comentário
+      # que ocupava estas linhas dizia com todas as letras: "se um dia mudar lá,
+      # muda aqui também". Duas cópias mantidas à mão divergem — e esta é a rede
+      # que deveria segurar justamente o que o hook local não segurou, então
+      # divergir aqui é divergir no pior lugar possível.
+      #
+      # A ESCOLHA (o "jeito mais simples que funciona nos dois"): um script de
+      # shell compartilhado, scripts/trava-dados.sh, que lê a lista de padrões de
+      # scripts/padroes-dados.txt e as exceções de scripts/excecoes-dados.txt. Um
+      # passo de CI já é shell dentro de YAML, então ele chama exatamente o mesmo
+      # script que o hook chama — sem tradutor de formato no meio, sem repetir
+      # regex em YAML e sem dependência nova. O que sobrou neste passo é só
+      # descobrir o range do push; toda a regra mora no script.
+      #
+      # Se este passo ficar vermelho, a saída já diz qual arquivo, o que aquele
+      # padrão protege (em português, não a expressão regular) e qual é o caminho
+      # de escape legítimo — não precisa abrir o script.
+      #
+      # O BASE ABAIXO PODE VIR VAZIO, E ISSO É ESPERADO (25/07/2026): no primeiro
+      # push de uma branch nova o GitHub manda github.event.before = 0000000,
+      # porque a ref não existia. Antes desta data o script, nesse caso, conferia
+      # só o commit do TOPO — e como um clone recém-feito também nasce sem os
+      # hooks locais (o git não versiona hooks ativos), a cadeia inteira ficava
+      # sem rede: clone novo → sem pre-commit → vários commits, um deles com a
+      # planilha real → push da branch nova → só o topo, limpo, era conferido.
+      # Agora quem resolve isso é scripts/trava-dados.sh: sem base válida ele
+      # confere todo commit do topo que ainda não está em nenhuma outra ref, e
+      # diz em voz alta qual recorte usou. Este passo continua passando o que o
+      # evento deu — a decisão mora no script, um lugar só, como o resto da regra.
+      - name: Trava de dados no CI (o mesmo script de .githooks/pre-commit)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          bash scripts/trava-dados.sh --intervalo "$BASE" "${{ github.sha }}"
+
+      # H3-M item 1: gitleaks varre o RANGE deste push no CI, não só a máquina
+      # do Marco (antes só era citado em documento de auditoria, nunca rodava
+      # sozinho). Binário oficial baixado direto do release do GitHub — não a
+      # Action de terceiro — conferido por sha256 fixo abaixo: determinístico,
+      # sem depender de tag flutuante nem de imagem Docker de terceiro. Mesma
+      # versão 8.30.1 já usada nas auditorias locais (SESSAO-HARDENING.md,
+      # DOSSIE-AUDITORIA-2026-07-19.md), sempre "no leaks found" no histórico
+      # inteiro dos dois repos.
+      - name: Baixar gitleaks 8.30.1 (binário oficial, pinado por sha256)
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+          GITLEAKS_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          chmod +x "$RUNNER_TEMP/gitleaks"
+
+      # .gitleaks.toml na raiz (se existir) é lido sozinho pelo gitleaks — hoje
+      # só estende o conjunto padrão de regras ([extend] useDefault = true) e a
+      # sua lista de exceções (allowlist) está vazia: nenhuma exceção viva, isto
+      # é, nenhum padrão que o scanner tenha ordem de ignorar. ATENÇÃO ao que
+      # essa frase NÃO diz: ela é sobre a lista de exceções, nunca sobre QUE
+      # COMMITS são varridos. Somada ao nome antigo deste passo ("varrer
+      # segredos no range deste push"), ela era lida como cobertura inteira — e
+      # até 26/07/2026 não era, pelo motivo logo abaixo.
+      #
+      # O BURACO FECHADO EM 26/07/2026 (Marco decidiu por questionário: "olhar
+      # tudo o que a ramificação traz"). Quando a base não vinha no evento, este
+      # passo caía para `--log-opts="-1"` e varria UM commit — ou seja, ele
+      # estreitava a varredura justamente no push em que o intervalo é o MAIOR.
+      # E esse é o caso mais comum que existe: no primeiro push de uma
+      # ramificação nova o GitHub manda github.event.before = 0000000, porque a
+      # ref não existia. Medido neste repositório: a ramificação
+      # 'liga-a-bateria-de-aceite-na-auditoria' trouxe 12 commits, e o passo
+      # teria olhado 1 — com um segredo em qualquer um dos 11 restantes saindo
+      # verde. Reproduzido num repositório descartável (três commits, o segredo
+      # no do meio): "1 commits scanned / no leaks found", exit 0.
+      #
+      # É O MESMO buraco que a guarda de dados fechou em 25/07/2026, no passo de
+      # cima deste mesmo arquivo, e a escada de recortes daqui é de propósito a
+      # MESMA de scripts/trava-dados.sh — com uma diferença declarada no último
+      # degrau (ver ali embaixo).
+      #
+      # A ESCADA, do mais preciso ao mais amplo, sempre dizendo em voz alta qual
+      # degrau usou e quantos commits ele alcança (recorte silencioso foi o que
+      # criou o buraco):
+      #   1) base no evento e existente neste clone → base..topo. É o caso
+      #      normal, e continua sendo o de todo push a uma ramificação que já
+      #      existia — logo a varredura NÃO virou "histórico inteiro a cada
+      #      push", que seria lenta a troco de nada.
+      #   2) sem base: tudo que o topo alcança e que nenhuma OUTRA ref deste
+      #      clone já alcança (`topo --not <demais refs>`). Numa ramificação
+      #      nova isso é exatamente a lista de commits que estão entrando, sem
+      #      precisar adivinhar qual é o ramo principal — que pode nem estar
+      #      neste clone.
+      #   3) sem base e sem nenhuma outra ref, clone COMPLETO: o histórico do
+      #      topo. Aqui nada estava aqui antes, então tudo está entrando agora.
+      #   4) sem base, sem outra ref e clone RASO: falha. Aqui a diferença
+      #      declarada em relação ao trava-dados.sh — não existe recorte para
+      #      montar, e varrer "o que veio no clone" sairia verde com cara de
+      #      conferido. Verde que não executou a verificação é a classe de
+      #      defeito que este repositório combate, então é melhor o vermelho.
+      - name: Gitleaks — varrer segredos em TODO commit que este push traz
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          HEAD="${{ github.sha }}"
+          ZERO=0000000000000000000000000000000000000000
+
+          if [ -n "$BASE" ] && [ "$BASE" != "$ZERO" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            RECORTE="$BASE..$HEAD"
+            echo "  (recorte $BASE..$HEAD — a base veio no evento)"
+          else
+            SHA_TOPO=$(git rev-parse "$HEAD" 2>/dev/null || true)
+            if [ -z "$SHA_TOPO" ]; then
+              echo "✗ NÃO CONSIGO VARRER: o commit do topo ($HEAD) não existe neste checkout."
+              echo "  Sem o topo não há recorte nenhum, e sair verde aqui seria anunciar"
+              echo "  uma varredura que não aconteceu."
+              exit 1
+            fi
+            OUTRAS=$(git rev-parse --all 2>/dev/null | grep -v -x "$SHA_TOPO" || true)
+            # O histórico veio cortado? Duas perguntas, porque uma só não cobre
+            # todo mundo: o arquivo 'shallow' existe em qualquer versão do git, e
+            # a pergunta direta só existe do git 2.15 em diante. E em `if`, não
+            # em `[ ... ] && VAR=sim`: o GitHub roda este bloco com `bash -e`, e
+            # uma lista dessas que termina em falso é uma discussão que não
+            # precisa existir num arquivo cuja falha silenciosa custaria caro.
+            RASO=nao
+            if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+              RASO=sim
+            fi
+            if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+              RASO=sim
+            fi
+
+            if [ -n "$OUTRAS" ]; then
+              echo "  (sem base no evento — varrendo todo commit que o topo alcança e que"
+              echo "   nenhuma outra ref deste clone alcança: é o primeiro push de uma"
+              echo "   ramificação nova, e são os commits que estão entrando agora)"
+              # O `tr` põe os SHAs numa linha só; o sed tira espaço dobrado e
+              # espaço no fim. Isso NÃO é preciosismo: o gitleaks reparte o
+              # valor de --log-opts por espaço, então um espaço sobrando vira um
+              # argumento VAZIO para o `git log` — medido em 26/07/2026, o git
+              # falha, e o gitleaks ainda assim imprime "0 commits scanned /
+              # no leaks found" e sai com código 0.
+              RECORTE="$HEAD --not $(printf '%s' "$OUTRAS" | tr '\n' ' ' | sed -e 's/  */ /g' -e 's/ *$//')"
+            elif [ "$RASO" = "sim" ]; then
+              echo "✗ NÃO SEI QUE COMMITS ESTE PUSH TROUXE, E NÃO VOU SAIR VERDE SEM SABER."
+              echo ""
+              echo "    base que veio no evento: [${BASE:-vazia}]"
+              echo "    outras refs neste clone: nenhuma"
+              echo "    clone raso (histórico cortado): sim"
+              echo ""
+              echo "  Sem base, sem outra ref e com o histórico cortado, o único recorte"
+              echo "  possível seria 'o que por acaso veio no clone' — que num clone raso"
+              echo "  é quase nada. Varrer isso e passar seria pior que não varrer: ficaria"
+              echo "  com cara de conferido."
+              echo ""
+              echo "  Conserto: o passo 'Baixar o código' deste job precisa de"
+              echo "  fetch-depth: 0 (histórico inteiro). É o que está no ci.yml hoje —"
+              echo "  se este erro apareceu, alguém reduziu esse valor, ou o clone chegou"
+              echo "  raso por outro caminho."
+              exit 1
+            else
+              echo "  (sem base e sem nenhuma outra ref — varrendo TODO o histórico do topo."
+              echo "   Nada estava aqui antes, então tudo está entrando agora.)"
+              RECORTE="$HEAD"
+            fi
+          fi
+
+          # O RECORTE É CONFERIDO PELO GIT ANTES DE VARRER, e o número de
+          # commits vai para o log. Medido em 26/07/2026: o gitleaks não reclama
+          # de recorte inválido — com uma revisão que não existe ele imprime
+          # "0 commits scanned / no leaks found" e sai com CÓDIGO 0. Sem esta
+          # conferência, qualquer erro no recorte acima viraria de novo um verde
+          # que não conferiu nada, que é exatamente o defeito que este passo
+          # acabou de fechar. $RECORTE sem aspas de propósito: são vários
+          # argumentos de revisão.
+          if ! QUANTOS=$(git rev-list --count $RECORTE 2>&1); then
+            echo "✗ O GIT NÃO ENTENDEU O RECORTE — não varri nada."
+            echo "    recorte: $RECORTE"
+            echo "    git respondeu: $QUANTOS"
+            exit 1
+          fi
+          echo "  ($QUANTOS commit(s) neste recorte)"
+
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact -v --log-opts="$RECORTE" .
+
+  testes-e-build:
+    name: Testes (Vitest, TZ=${{ matrix.tz }}) + build de produção
+    runs-on: ubuntu-latest
+    # Dois fusos (hardening — regra da casa): o runner do GitHub é UTC por
+    # padrão, e rodar só nele já deixou passar bug de virada de dia que só
+    # aparece com TZ negativo (America/Sao_Paulo, UTC-3) — a suíte real do
+    # Marco roda sempre nesse fuso. A Frente 1 do hardening tornou os testes
+    # de fuso determinísticos (backupExterno.test.js e afins); esta matriz é
+    # o que efetivamente roda a suíte INTEIRA duas vezes, uma em cada fuso,
+    # em vez de confiar que os testes "parecem" seguros em qualquer TZ.
+    strategy:
+      fail-fast: false
+      matrix:
+        tz: ['UTC', 'America/Sao_Paulo']
+    steps:
+      - name: Baixar o código
+        # fetch-depth: 0 = histórico inteiro. O portão do golden precisa
+        # percorrer os commits do push, não só a árvore do topo.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Portão do golden (dossiê de auditoria 19/07/2026): calc.js e
+      # golden.test.js só mudam com aprovação explícita e datada do Marco na
+      # mensagem do commit. Antes disto a regra era social — nada barrava.
+      # Roda ANTES dos testes: mudança de fórmula sem aprovação não merece nem
+      # a máquina de CI. É o mesmo script que o hook commit-msg executa, então
+      # um `--no-verify` local não passa daqui. Roda nas DUAS pernas da matriz
+      # de propósito (é rápido e independente de fuso) — cada perna do CI tem
+      # de continuar barrando sozinha; nenhuma perna deve depender da outra
+      # para aplicar o portão.
+      - name: Portão do golden (fórmula e golden só mudam com aprovação do Marco)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./scripts/portao-golden.sh --intervalo \
+              "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
+          else
+            ./scripts/portao-golden.sh --intervalo \
+              "${{ github.event.before }}" "${{ github.sha }}"
+          fi
+
+      - name: Preparar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Índice de testes atualizado (Marco, 24/07/2026 — decisão datada). É o
+      # passo (e) do scripts/auditoria.sh, que existia mas NUNCA rodava aqui: o
+      # CI já cobria os passos (a)-(d) do script (suíte nos dois fusos, build e
+      # portão do golden), então só este ficava de fora — e a trava social
+      # deixou o índice derivar até declarar "componentes: 0 testes" quando
+      # havia 6 arquivos e 23 casos (127 casos a menos que a realidade,
+      # achado da sessão de grafo 24/07/2026).
+      #
+      # Entrou SÓ este passo, não o auditoria.sh inteiro, de propósito: o
+      # script repetiria a suíte 2× e o build 1× que o CI já fez (~16s de
+      # duplicação por push) e espalharia a mesma falha em dois lugares do log.
+      # Custo aqui: 0,08s. ATENÇÃO à manutenção: um passo (f) novo no
+      # auditoria.sh NÃO entra aqui sozinho — tem de ser acrescentado à mão,
+      # a mesma manutenção que o portão do golden já pede.
+      #
+      # RODA ANTES DOS TESTES, pelo mesmo motivo que o portão do golden roda
+      # antes: é checagem estática e barata, e um passo que só roda DEPOIS da
+      # suíte fica inalcançável enquanto a suíte estiver vermelha — foi o que
+      # aconteceu na primeira versão deste passo, que saiu `skipped` nas duas
+      # pernas (o CI está vermelho por outro motivo, registrado no BACKLOG como
+      # S2). Não precisa de npm ci: o gerador só importa node:fs/path/url.
+      #
+      # Só na perna UTC: ler nome de describe/it não depende de fuso.
+      - name: Índice de testes (EVIDENCIA-TESTES.md) atualizado
+        if: matrix.tz == 'UTC'
+        run: |
+          node scripts/gerar-indice-testes.mjs
+          if ! git diff --exit-code -- EVIDENCIA-TESTES.md; then
+            echo ""
+            echo "EVIDENCIA-TESTES.md está DESATUALIZADO — o diff acima é a diferença"
+            echo "entre o índice commitado e os testes que existem de verdade."
+            echo "Rode 'node scripts/gerar-indice-testes.mjs', confira o diff, e"
+            echo "commite EVIDENCIA-TESTES.md junto da mudança que alterou os testes."
+            exit 1
+          fi
+
+      - name: Instalar dependências (limpo, a partir do package-lock)
+        run: npm ci
+
+      # ─── A TRAVA DE DADOS TEM DE TER SE LIGADO SOZINHA (25/07/2026) ───────
+      # Este passo é o TESTE do `prepare` do package.json, que roda
+      # .githooks/ligar-trava.sh depois de instalar e aponta core.hooksPath para
+      # .githooks. Sem este passo, aquilo é promessa: se alguém apagar o
+      # `prepare`, renomear o script, ou o npm mudar quando executa esse gancho,
+      # a instalação continua verde e todo clone novo volta a nascer sem
+      # porteiro — em silêncio, que é o jeito de o problema durar meses.
+      #
+      # O BURACO QUE ISTO GUARDA, medido em 25/07/2026 num clone de verdade: o
+      # git não liga hook nenhum ao clonar (`git config core.hooksPath` volta
+      # vazio), e commitar backup-producao.json e "orçamento.xlsx.bak" saiu com
+      # código 0, sem `--no-verify` e sem `git add -f`. O .gitignore segurava
+      # uma parte, mas ele casa EXTENSÃO EXATA enquanto a guarda casa a família
+      # toda: `orçamento.xlsx.bak` é planilha inteira e passa pelo `*.xlsx`.
+      #
+      # RODA LOGO DEPOIS DO `npm ci` porque é ele que está sendo medido, e nas
+      # DUAS pernas da matriz de propósito, pelo mesmo motivo do portão do
+      # golden: cada perna faz o seu próprio `npm ci`, então cada perna tem de
+      # provar sozinha que aquela instalação ligou a trava. Custa milissegundos.
+      #
+      # O QUE ESTE PASSO CONFERE, e o que ele deliberadamente NÃO confere: aqui
+      # se afirma que a configuração ficou apontando para .githooks E que existe
+      # um pre-commit executável naquele caminho — porque apontar para uma pasta
+      # sem hook é a falha em silêncio perfeita, com cara de configuração certa.
+      # A prova de PONTA A PONTA (clonar, instalar, tentar commitar a planilha,
+      # ser barrado nomeando o arquivo, e um arquivo comum passar) é um cenário
+      # de scripts/portao-teste.sh, que faz isso num clone descartável; repeti-la
+      # aqui exigiria commitar dentro do checkout da esteira no meio do job.
+      #
+      # LIMITE DECLARADO: `npm ci --ignore-scripts` pula o `prepare` — e é
+      # justamente esse caso que este passo pega, porque ele olha o RESULTADO
+      # (a configuração), não a intenção. O outro limite não tem conserto aqui:
+      # entre `git clone` e a primeira instalação o clone segue sem porteiro.
+      - name: A instalação ligou a trava de dados (core.hooksPath = .githooks)
+        run: |
+          esperado=".githooks"
+          valendo=$(git config core.hooksPath || true)
+
+          # A comparação é pelo DIRETÓRIO QUE O VALOR ALCANÇA, não pelo texto.
+          # Na esteira o valor é sempre o relativo '.githooks' (checkout novo, e
+          # é isso que o ligar-trava.sh escreve), mas uma árvore de trabalho do
+          # `git worktree` compartilha a configuração e guarda o caminho
+          # absoluto — que aponta para a MESMA pasta e protege igual. Reprovar
+          # esse caso seria alarme falso, e alarme falso ensina a ignorar o
+          # vermelho. Assim este mesmo bloco também pode ser rodado à mão.
+          alvo=""
+          if [ -n "$valendo" ]; then
+            case "$valendo" in
+              /*) alvo="$valendo" ;;
+              *)  alvo="$(git rev-parse --show-toplevel)/$valendo" ;;
+            esac
+          fi
+          onde_aponta=$(cd "$alvo" 2>/dev/null && pwd -P) || onde_aponta=""
+          onde_deveria=$(cd "$esperado" 2>/dev/null && pwd -P) || onde_deveria=""
+
+          if [ -z "$onde_deveria" ]; then
+            echo "✗ Não achei a pasta $esperado neste checkout."
+            echo "  Ela é versionada — sem ela não existe trava nenhuma para ligar."
+            exit 1
+          fi
+
+          if [ "$onde_aponta" != "$onde_deveria" ]; then
+            echo "✗ A INSTALAÇÃO NÃO LIGOU A TRAVA DE DADOS."
+            echo ""
+            echo "    core.hooksPath esperado: $esperado"
+            echo "    core.hooksPath valendo:  [${valendo:-vazio}]"
+            echo "    ...que alcança:          [${onde_aponta:-nenhuma pasta}]"
+            echo "    ...e deveria alcançar:   [$onde_deveria]"
+            echo ""
+            echo "  Depois de 'npm ci', este repositório deveria estar com os"
+            echo "  hooks de .githooks/ ligados. Como não está, todo clone novo"
+            echo "  deste código nasce SEM porteiro: a planilha e o backup da"
+            echo "  festa entram num commit com código de saída 0 e sem aviso."
+            echo ""
+            echo "  Onde olhar, nesta ordem:"
+            echo "    1. package.json — o script 'prepare' ainda existe e ainda"
+            echo "       chama 'sh .githooks/ligar-trava.sh'?"
+            echo "    2. .githooks/ligar-trava.sh — foi renomeado ou apagado?"
+            echo "    3. a saída do passo 'Instalar dependências' acima — o"
+            echo "       ligar-trava.sh imprime o que fez, inclusive quando"
+            echo "       decide não ligar (e por quê)."
+            echo "    4. o passo de instalação está usando --ignore-scripts?"
+            echo "       Se estiver, ele pula o 'prepare' de propósito."
+            exit 1
+          fi
+
+          if [ ! -x "$onde_aponta/pre-commit" ]; then
+            echo "✗ core.hooksPath alcança $onde_aponta, mas não há um"
+            echo "  pre-commit EXECUTÁVEL lá dentro."
+            echo ""
+            echo "  Isso é pior que a configuração errada: fica com cara de"
+            echo "  trava ligada e nenhum hook roda. O git só executa arquivo de"
+            echo "  hook com bit de execução — confira com 'ls -l $esperado' e"
+            echo "  'git ls-files -s $esperado' (o modo tem de ser 100755)."
+            exit 1
+          fi
+
+          echo "✓ a instalação ligou a trava: core.hooksPath = $valendo"
+          echo "  alcança $onde_aponta, e o pre-commit está lá, executável."
+
+      - name: Testes (Vitest, TZ=${{ matrix.tz }})
+        run: TZ="${{ matrix.tz }}" npx vitest run
+
+      # Build não depende de fuso — roda só na perna UTC para não duplicar
+      # trabalho à toa.
+      - name: Build de produção
+        if: matrix.tz == 'UTC'
+        run: npm run build
+
+  teste-ponte:
+    name: Ponte com o Financeiro (integração real, H3-I)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar previsao-eventos
+        uses: actions/checkout@v4
+
+      # LIMITAÇÃO DECLARADA (Sessão H3-I, PLANO-HARDENING-3.md): os dois apps
+      # vivem em repositórios PRIVADOS separados
+      # (marcogusmao/previsao-eventos e marcogusmao/Financeiro) — o
+      # GITHUB_TOKEN padrão só enxerga o repo do próprio job, então este
+      # checkout cruzado só funciona com um Personal Access Token que tenha
+      # leitura no repo irmão, guardado como secret PONTE_CHECKOUT_TOKEN
+      # (Settings › Secrets and variables › Actions, NOS DOIS repos — o
+      # mesmo PAT serve para os dois lados). Enquanto o Marco não configurar
+      # esse secret, o passo abaixo falha a autenticação e o passo seguinte
+      # PULA o teste com um aviso explícito — nunca finge sucesso.
+      - name: Baixar Financeiro (repo irmão da ponte)
+        id: sibling
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: marcogusmao/Financeiro
+          token: ${{ secrets.PONTE_CHECKOUT_TOKEN }}
+          path: _ponte_financeiro_marfim
+
+      - name: Preparar Python 3
+        if: steps.sibling.outcome == 'success'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Rodar teste_ponte.sh (cliente real da previsão × servidor real do Financeiro)
+        if: steps.sibling.outcome == 'success'
+        env:
+          PONTE_FINANCEIRO_DIR: ${{ github.workspace }}/_ponte_financeiro_marfim
+          PONTE_PREVISAO_DIR: ${{ github.workspace }}
+        run: bash scripts/teste_ponte.sh
+
+      - name: Aviso quando o job foi pulado por falta do secret
+        if: steps.sibling.outcome != 'success'
+        run: |
+          echo "::warning::teste-ponte PULADO — configure o secret PONTE_CHECKOUT_TOKEN \
+          (um Personal Access Token com leitura em marcogusmao/Financeiro, \
+          cadastrado em Settings > Secrets and variables > Actions deste repo) \
+          para habilitar a prova de integração real da ponte no CI. Sem o \
+          secret, este passo não roda o teste de verdade — não é um 'passou', \
+          é um 'não rodou'. Validação local: PLANO-HARDENING-3.md, Sessão H3-I."

@@ -1,0 +1,31 @@
+# Config do gitleaks para este repo (H3-M, PLANO-HARDENING-3.md).
+#
+# Lido sozinho pelo gitleaks quando roda a partir da raiz do repo — não
+# precisa de --config no comando (ver .github/workflows/ci.yml, job
+# "seguranca"). Este arquivo só ESTENDE o conjunto padrão de regras do
+# gitleaks (não substitui): sem a seção [extend] com useDefault = true, as
+# regras embutidas (chave AWS, PAT do GitHub, chave privada, etc.) seriam
+# perdidas e o scanner viraria um teatro. Testado manualmente antes de entrar
+# aqui: com este arquivo, um segredo de teste (PAT falso) continua sendo
+# pego; sem ele, também — a diferença é só a extensão para o allowlist
+# abaixo, quando precisar de um.
+[extend]
+useDefault = true
+
+# Allowlist: PATHS/REGEXES que o gitleaks deve ignorar por serem exemplo/
+# documentação, não segredo real. Hoje está VAZIA de propósito — a varredura
+# completa do histórico (gitleaks git .) não encontrou nenhum falso-positivo
+# que justificasse uma exceção (checado nesta sessão, H3-M). Se um dia
+# aparecer um (ex.: uma chave de exemplo em teste ou documentação), abra a
+# seção como:
+#
+# [allowlist]
+# paths = [
+#   '''caminho/do/arquivo\.md''',
+# ]
+# regexes = [
+#   '''PLACEHOLDER-QUE-NAO-E-SEGREDO''',
+# ]
+#
+# NUNCA ponha aqui um segredo real, nem mesmo redigido/truncado — só padrões
+# que identificam texto que JÁ SABEMOS não ser segredo.

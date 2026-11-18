@@ -1,0 +1,60 @@
+#!/bin/sh
+# Trava de dados no commit (hardening 2.3 — Marco, via auditoria externa 18/07/2026).
+# Bloqueia banco, planilha de evento, CSV de pagamento e backup JSON de dados reais
+# de entrarem no git, mesmo com `git add -f`. O .gitignore previne o acidente
+# comum; este hook segura o resto (prevenção além da detecção do gitleaks).
+#
+# NUM CLONE NOVO, QUEM LIGA ESTE HOOK É A INSTALAÇÃO (25/07/2026). O git não
+# versiona hooks ativos: recém-clonado, `git config core.hooksPath` volta vazio.
+# Até esta data isso só se resolvia com um comando pedido à mão em três
+# documentos, e documento não é parede — medido num clone de verdade, sem
+# `--no-verify` e sem `git add -f`, a planilha e o backup da festa entraram com
+# código de saída 0 e nenhum aviso. Agora o `prepare` do package.json roda
+# `.githooks/ligar-trava.sh` depois de `npm install`/`npm ci` e aponta
+# core.hooksPath para .githooks sozinho. O comando à mão continua valendo como
+# plano B:
+#     git config core.hooksPath .githooks
+#
+# LEIA ESTA LINHA COMO UM LIMITE, NÃO COMO UMA NOTA DE RODAPÉ: entre `git clone`
+# e a primeira instalação, ESTE HOOK AINDA NÃO EXISTE no clone — quem commitar
+# nessa janela passa igual ao que foi medido. A janela encolheu de "para sempre"
+# para "até instalar"; ela não fechou. Por isso a rede que conta continua sendo
+# a esteira (.github/workflows/ci.yml), que roda a mesma trava, não depende da
+# configuração de ninguém, e desde 25/07/2026 também RECUSA o build quando
+# core.hooksPath não ficou apontando para .githooks depois da instalação; e por
+# isso scripts/trava-dados.sh passou a conferir TODOS os commits novos de uma
+# branch nova, não só o do topo.
+#
+# ONDE MORA A REGRA (Sessão H4-D, 25/07/2026): não mora mais aqui dentro. Os
+# padrões estão em scripts/padroes-dados.txt, as exceções em
+# scripts/excecoes-dados.txt, e a decisão em scripts/trava-dados.sh — que é o
+# MESMO script chamado por .github/workflows/ci.yml. Antes desta sessão a lista
+# de padrões existia duas vezes, copiada à mão entre este hook e a esteira, e o
+# comentário do próprio ci.yml admitia: "se um dia mudar lá, muda aqui também".
+# Mudar um padrão agora muda o comportamento dos dois lados de uma vez.
+#
+# Os comentários que explicavam POR QUE cada padrão existe (o token da ponte do
+# H2-B, a leitura à prova de acento da Sessão H4 com -z em vez de core.quotepath)
+# foram junto com os padrões: estão em scripts/padroes-dados.txt e no cabeçalho
+# de scripts/trava-dados.sh, ao lado do código que depende deles.
+#
+# Bypass consciente: `git commit --no-verify`. Mas prefira a lista de exceções —
+# ela fica versionada, com motivo e autor, e vale também na esteira. O
+# --no-verify não deixa rastro nenhum no repositório e não passa no CI, que roda
+# esta mesma trava.
+
+RAIZ=$(git rev-parse --show-toplevel 2>/dev/null)
+TRAVA="$RAIZ/scripts/trava-dados.sh"
+
+if [ ! -f "$TRAVA" ]; then
+  echo "✗ Commit bloqueado (.githooks/pre-commit): não encontrei"
+  echo "    $TRAVA"
+  echo "  A trava de dados é aquele script — sem ele este hook não sabe o que"
+  echo "  barrar, e deixar passar calado seria pior do que recusar. Recupere o"
+  echo "  arquivo (é versionado). Se for MESMO intencional, use --no-verify e"
+  echo "  explique o porquê na mensagem do commit."
+  exit 1
+fi
+
+sh "$TRAVA" --index || exit 1
+exit 0

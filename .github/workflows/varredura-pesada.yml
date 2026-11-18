@@ -1,0 +1,193 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# varredura-pesada.yml — as provas de propriedade que saíram do portão de cada push
+#
+# POR QUE ESTE ARQUIVO EXISTE (medido em 01/08/2026)
+#
+# src/lib/comparacaoCustos.test.js tem três varreduras — 13 mil, 20 mil e 100 mil
+# eventos — que são o que prova de verdade que a coluna da previsão fecha em
+# QUALQUER combinação de centavos. São também laços SÍNCRONOS: enquanto rodam, o
+# event loop do worker do vitest fica travado e ele não responde ao heartbeat.
+#
+# Com elas no ci.yml, a esteira morria com
+#     Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+# COM os 2518 testes passando. A main ficou vermelha assim de 27/07 a 01/08 —
+# quatro dias, doze runs — e ninguém viu, porque nada bloqueava o push direto.
+#
+# Duas saídas foram testadas e descartadas antes desta:
+#   • aumentar o timeout do teste → o laço continua travando o worker; só troca
+#     um sintoma por outro (foi exatamente o que aconteceu no PR #78);
+#   • pool: 'forks' → a suspeita inicial foi que ele quebrava 198 testes, mas a
+#     causa real daquelas 198 falhas era NODE_ENV=production no ambiente do
+#     agente, não o pool. Fica registrado como NÃO INVESTIGADO até o fim, e não
+#     como descartado.
+#
+# A saída adotada não enfraquece a prova: ela continua rodando INTEIRA, todo dia,
+# e em toda máquina de desenvolvimento (o marcador `itPesado` só pula quando
+# CI=true e VARREDURA_PESADA não está setada). O que mudou é que uma varredura de
+# um minuto não derruba mais o portão de um commit de uma linha.
+#
+# ── VERMELHO AQUI NÃO QUER DIZER UMA COISA SÓ (corrigido em 30/08/2026) ──────
+#
+# Até esta data estas duas linhas diziam: "se este agendado ficar vermelho, é
+# achado de verdade: o motor mudou de comportamento em algum canto de centavo.
+# Não ignore." A frase estava ERRADA, e enganou por um mês.
+#
+# Medido em 30/08/2026: este trabalho saiu vermelho em 13 das últimas 15 noites
+# (verdes só 17/08 e 25/08). No run de 29/08 os 26 testes PASSARAM e o trabalho
+# saiu com código 1 assim mesmo, por
+#     Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+# — o worker morreu no relógio, não o motor. Quem seguisse a instrução acima e
+# abrisse o log encontrava, noite após noite, um vermelho que não era achado
+# nenhum. Alarme que sempre toca é alarme desligado, e este vinha treinando
+# todo mundo a ignorá-lo havia um mês.
+#
+# Duas coisas diferentes, e o passo "Veredito da rodada" (no fim deste arquivo)
+# agora as separa em português, para um vermelho futuro ser legível sem abrir
+# log nenhum:
+#
+#   PROPRIEDADE VIOLADA — algum teste falhou. ISTO é achado de motor: a coluna
+#                         deixou de fechar em algum canto de centavo. Não ignore.
+#
+#   O ROBÔ MORREU NO RELÓGIO — nenhum teste falhou, e ainda assim a rodada não
+#                         terminou (heartbeat do worker perdido, tempo do
+#                         trabalho esgotado). É infraestrutura. O motor não foi
+#                         acusado de nada — e nada foi provado sobre ele.
+#
+# A causa medida do segundo caso foi consertada no próprio teste em 30/08/2026:
+# os três laços cedem o event loop a cada 2.000 eventos (ver CEDER_A_CADA, no
+# topo de src/lib/comparacaoCustos.test.js). As mesmas iterações, as mesmas
+# asserções — só o worker voltou a responder ao heartbeat.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Varredura pesada (provas de propriedade do motor)
+
+on:
+  schedule:
+    # 04:00 UTC = 01:00 em São Paulo. Fora do horário de trabalho de propósito:
+    # é a rodada longa, e ninguém deve estar esperando por ela.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  varredura:
+    name: Varreduras de propriedade (13 mil · 20 mil · 100 mil eventos)
+    runs-on: ubuntu-latest
+    # A rodada inteira leva ~3 min no runner do GitHub (medido em 29/08/2026:
+    # o laço de 100 mil sozinho leva 72,6 s). 30 min é backstop largo: mata uma
+    # rodada travada em vez de deixá-la rodando por horas, e o passo de veredito
+    # abaixo chama isso pelo nome ("o robô morreu no relógio").
+    timeout-minutes: 30
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar (com devDependencies — vitest é uma delas)
+        run: npm ci --include=dev
+
+      - name: Rodar SÓ as varreduras pesadas
+        # VARREDURA_PESADA=1 é o que destrava o `itPesado` do arquivo de teste.
+        # Sem esta variável, estes três testes são pulados em qualquer CI.
+        #
+        # O código de saída é LIDO, não obedecido aqui: quem decide a cor é o
+        # passo "Veredito da rodada", abaixo, que sabe distinguir propriedade
+        # violada de robô morto no relógio. `set +e` e `PIPESTATUS[0]` porque a
+        # saída também vai para um arquivo — sem isso, o código lido seria o do
+        # `tee`, que é sempre 0.
+        id: varredura
+        env:
+          VARREDURA_PESADA: '1'
+        run: |
+          set +e
+          npx vitest run src/lib/comparacaoCustos.test.js --reporter=verbose 2>&1 | tee /tmp/varredura.log
+          codigo=${PIPESTATUS[0]}
+          set -e
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          echo "A varredura terminou com código de saída $codigo (a cor sai no passo seguinte)."
+
+      # ─── O VEREDITO, EM PORTUGUÊS ──────────────────────────────────────────
+      # Existe para que um vermelho futuro seja legível sem abrir log. Ver o
+      # cabeçalho deste arquivo: até 30/08/2026 todo vermelho aqui se anunciava
+      # como achado de motor, e 13 das 15 últimas noites eram infraestrutura.
+      - name: Veredito da rodada
+        if: always()
+        env:
+          CODIGO: ${{ steps.varredura.outputs.codigo }}
+        run: |
+          LOG=/tmp/varredura.log
+          [ -f "$LOG" ] || : > "$LOG"
+
+          # A cor do terminal sai antes de qualquer leitura: com ela no meio,
+          # "26 passed" pode chegar como "26 \e[32mpassed" e o número some.
+          LIMPO=/tmp/varredura-sem-cor.log
+          sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' "$LOG" > "$LIMPO"
+
+          # A linha de placar do próprio vitest: "Tests  1 failed | 25 passed (26)".
+          PLACAR=$(grep -oE 'Tests {2,}.*' "$LIMPO" | tail -1 || true)
+          FALHOS=$(printf '%s' "$PLACAR" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || true)
+          FALHOS=${FALHOS:-0}
+          PASSANDO=$(printf '%s' "$PLACAR" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || true)
+          PASSANDO=${PASSANDO:-0}
+          # O óbito do worker tem assinatura própria e não aparece como teste.
+          INFRA=$(grep -cE 'Unhandled Error|Timeout calling|vitest-worker' "$LIMPO" || true)
+          INFRA=${INFRA:-0}
+
+          {
+            echo "## Varredura pesada — provas de propriedade do motor"
+            echo ""
+            echo "Código de saída: \`${CODIGO:-(o passo não chegou ao fim)}\`"
+            echo ""
+            echo "Testes: **$PASSANDO passando** · **$FALHOS falhando** · sinais de infraestrutura no log: **$INFRA**"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FALHOS" -gt 0 ]; then
+            echo "✗ PROPRIEDADE VIOLADA — $FALHOS teste(s) falharam."
+            echo ""
+            echo "  ISTO é achado de motor, e é o caso que esta esteira existe para pegar:"
+            echo "  a coluna da previsão deixou de fechar em algum canto de centavo, ou o"
+            echo "  teto por linha foi ultrapassado. Não ignore, não re-rode esperando"
+            echo "  verde. Abra o log acima e leia QUAL asserção quebrou."
+            echo "**✗ PROPRIEDADE VIOLADA** — $FALHOS teste(s) falharam. Achado de motor: leia o log." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if [ -z "$CODIGO" ]; then
+            echo "✗ O ROBÔ MORREU NO RELÓGIO — o passo da varredura não chegou ao fim."
+            echo ""
+            echo "  Nenhum teste foi acusado. O tempo do trabalho (timeout-minutes) se"
+            echo "  esgotou antes do fim, ou o runner caiu. Isto é INFRAESTRUTURA: nada"
+            echo "  foi provado sobre o motor nesta rodada, e nada foi acusado dele."
+            echo "**✗ O ROBÔ MORREU NO RELÓGIO** — o passo não terminou. Infraestrutura; nada foi provado sobre o motor." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if [ "$CODIGO" != "0" ]; then
+            if [ "$INFRA" -gt 0 ]; then
+              echo "✗ O ROBÔ MORREU NO RELÓGIO — zero teste falhou, e a rodada morreu assim mesmo."
+              echo ""
+              echo "  O log traz a assinatura do worker do vitest perdendo o heartbeat"
+              echo "  ('Timeout calling ...', 'Unhandled Error', '[vitest-worker]')."
+              echo "  É INFRAESTRUTURA, não achado de motor — foi exatamente isto que"
+              echo "  pintou 13 das 15 noites de agosto de vermelho."
+              echo ""
+              echo "  Onde olhar: CEDER_A_CADA em src/lib/comparacaoCustos.test.js e os"
+              echo "  planos B e C no cabeçalho deste arquivo (--pool=forks, --reporter=dot)."
+              echo "**✗ O ROBÔ MORREU NO RELÓGIO** — zero teste falhou; o worker perdeu o heartbeat. Infraestrutura." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "✗ A VARREDURA SAIU COM CÓDIGO $CODIGO e nenhum teste foi acusado."
+              echo ""
+              echo "  Estado que este arquivo não sabe interpretar. Não sai verde: leia o"
+              echo "  log inteiro e acrescente o caso novo a este passo."
+              echo "**✗ Código $CODIGO sem teste falho** — estado não interpretado; leia o log." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          fi
+
+          echo "✓ As três varreduras de propriedade passaram ($PASSANDO testes)."
+          echo "  A coluna da previsão fecha em toda combinação de centavos exercitada."
+          echo "**✓ Verde** — $PASSANDO testes passando, nenhuma propriedade violada." >> "$GITHUB_STEP_SUMMARY"

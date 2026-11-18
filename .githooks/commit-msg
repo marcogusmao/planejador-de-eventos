@@ -1,0 +1,14 @@
+#!/bin/sh
+# Portão do golden, lado local (Marco, via dossiê de auditoria 19/07/2026).
+#
+# Por que commit-msg e não pre-commit: a marcação de aprovação vive na MENSAGEM
+# do commit, e o pre-commit roda antes de a mensagem existir. O pre-commit segue
+# cuidando de arquivo de DADOS (banco, planilha, backup, token); este cuida de
+# fórmula e golden.
+#
+# REINSTALAR NUM CLONE NOVO (o git não versiona hooks ativos):
+#     git config core.hooksPath .githooks
+#
+# A regra inteira, o formato da marcação e o motivo moram em
+# scripts/portao-golden.sh — um lugar só, o mesmo que o CI executa.
+exec "$(git rev-parse --show-toplevel)/scripts/portao-golden.sh" --commit-msg "$1"

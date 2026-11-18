@@ -1,0 +1,32 @@
+# .worktreeinclude — Previsão de Eventos
+#
+# Diz ao Conductor quais arquivos IGNORADOS pelo git devem ser copiados para
+# cada workspace novo. O padrão de fábrica do Conductor é `.env*`. Aqui a lista
+# é deliberadamente vazia — é decisão, não esquecimento.
+#
+# ── O que NÃO se copia, e por quê ────────────────────────────────────────────
+#
+#   importacoes/      Planilhas de evento com dinheiro real e nome de gente.
+#   *.backup.json     Backups do estado real do app.
+#   *.xlsx *.xls      Planilhas do Marco.
+#   *.csv             Os três exports que o próprio app gera com dinheiro de
+#                     festa (contador-*, pagamentos-*, plano-*).
+#   node_modules/     Reconstruído pelo setup com `npm ci` — copiar seria pior:
+#                     traria binário compilado para outra arquitetura e mentiria
+#                     sobre o que o lock realmente instala.
+#   dist/             Artefato de build. Reconstruível.
+#   .claude/worktrees/  Worktree dentro de worktree. Não.
+#
+# ── O que o workspace precisa e JÁ TEM ───────────────────────────────────────
+#
+#   .claude/skills/   As 6 skills da casa (iniciar-sessao, portao-golden,
+#                     verificacao-adversarial, validar-commit, registrar-achado,
+#                     pergunta-ao-marco) são VERSIONADAS de propósito — vêm no
+#                     checkout. O .gitignore deste repo já é cirúrgico nisso.
+#   .claude/agents/   O elenco (revisor-adversarial, auditor-dinheiro,
+#                     seguranca, varredor, executor-mecanico), versionado em
+#                     01/08/2026 justamente para existir dentro do workspace.
+#   .mcp.json         Servidor MCP do projeto, versionado.
+#
+# Se algum arquivo ignorado passar a ser realmente necessário, acrescente a
+# linha com um comentário dizendo por quê. Segredo, nunca.

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Favicon da Previsão de Eventos (Sessão F2-U): a "bola pintada" da casa
+       em VERDE (#00782a, o token verde da casa, definido em index.css:62 — o
+       mesmo tom que o Sobrado usa em Marca.jsx) — distingue a aba da
+       previsão da do Financeiro, cuja bola é azul. É a assinatura visual da
+       casa (as bolas), não um ícone de sistema.
+
+       A cor aqui é da BOLA DA CASA, não de uma festa (Marco, 24/07/2026).
+       Até esta data o comentário dizia "o verde da marca / O Galeao", e isso
+       era falso: O Galeao é LARANJA (#c2410c, Marca.jsx e aparencia.js, com
+       teste em aparencia.test.js). Quem lê este arquivo não deve "corrigir" o
+       fill para o laranja da O Galeao: trocar o verde por laranja quebraria
+       exatamente a função do arquivo, que é separar esta aba da do
+       Financeiro. -->
+  <circle cx="16" cy="16" r="15" fill="#00782a" />
+</svg>

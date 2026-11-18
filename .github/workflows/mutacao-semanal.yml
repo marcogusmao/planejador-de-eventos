@@ -1,0 +1,588 @@
+name: Mutação (semanal)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A BATERIA DE MUTAÇÃO, RODANDO SOZINHA UMA VEZ POR SEMANA.
+#
+# O que ela pergunta: "se eu estragar um número de propósito dentro do cálculo,
+# algum teste percebe?". Cada ponto estragado que a suíte deixa passar é um
+# buraco de rede — um lugar onde um número errado poderia chegar à tela do Marco
+# sem ninguém gritar.
+#
+# POR QUE SEMANAL, E NÃO A CADA ENVIO (Marco, decisão 13 do DECISOES-MARCO-H4.md,
+# 25/07/2026): ele respondeu primeiro "a cada envio" e voltou atrás no mesmo dia,
+# adotando a recomendação — fica registrado o caminho, não só o destino. O custo
+# não é o de uma rodada e sim o de todas: 3 minutos por envio viram meia hora por
+# dia numa sessão movimentada, e esteira lenta é esteira que as pessoas param de
+# olhar, que é pior do que não ter. E o que a bateria mede não muda de um envio
+# para o outro — a resposta só muda quando os TESTES mudam. Semanal casa com o
+# ritmo do que ela mede.
+#
+# ARQUIVO SEPARADO DO ci.yml de propósito: uma rodada longa nunca pode entrar no
+# caminho de um envio comum. (Esta linha dizia "uma rodada de 4 a 8 minutos" até
+# 30/08/2026. Era o custo de quando a bateria nasceu; hoje a rodada leva ~62 min,
+# e o número medido mora num lugar só — o bloco de conta acima do
+# `timeout-minutes`, mais abaixo neste arquivo. Duração em prosa envelhece
+# calada, e esta envelheceu por um fator de dez.)
+#
+# ── O DESENHO QUE ESTE ARQUIVO PRECISOU RESOLVER, e a escolha, escrita ────────
+#
+# A ferramenta HOJE sai com código de erro de propósito: `node scripts/mutacao.mjs`
+# devolve 2 quando existe sobrevivente ainda não julgado, e existem sobreviventes
+# não julgados neste momento (storage.js:163 e storage.js:165, na rodada 5 de
+# 25/07/2026). Ligar a bateria do jeito óbvio — deixar o código de saída derrubar
+# o trabalho — faria este passo NASCER VERMELHO, toda semana, desde a primeira
+# execução. Passo que nasce vermelho e continua vermelho não é aviso: vira
+# paisagem, e daí a alguém desligá-lo é questão de tempo. O resultado precisava
+# ficar visível sem travar ninguém.
+#
+# A ESCOLHA, e ela distingue duas coisas que o código de saída junta:
+#
+#   código 1 — A RODADA NÃO MEDIU (ambiente quebrado, canário vermelho ou com
+#              tempo esgotado, coleta parcial, orçamento estourado). VERMELHO,
+#              sem discussão. Uma rodada que não mediu não pode parecer uma
+#              rodada com nota máxima; é a exigência escrita na própria decisão
+#              13 do Marco. O que NÃO dá mais código 1: o mutante que TRAVA a
+#              suíte depois de o canário limpo ter passado nos dois fusos (teto
+#              ≥ 2× o canário) conta como MORTA-POR-TRAVAMENTO — decisão do
+#              Marco de 12/08/2026, no código desde 05/10/2026. Era ele
+#              (`comparacaoCustos.js:232`) quem deixava este trabalho vermelho
+#              toda segunda desde 30/08/2026.
+#
+#   código 2 — A RODADA MEDIU E ACHOU. Existe sobrevivente sem julgamento: um
+#              achado ABERTO, para alguém ler e julgar. Isso é resultado de
+#              trabalho, não infraestrutura quebrada. Aqui o trabalho fica VERDE
+#              e o achado sai como AVISO do GitHub (`::warning::`), no resumo do
+#              run e no título do pull request que este workflow abre. É o que a
+#              decisão 13 pede com todas as letras: "fazer a piora do resultado
+#              virar aviso, não apenas uma linha no arquivo".
+#
+#   código 0 — mediu e todo sobrevivente tem julgamento datado. Verde silencioso.
+#
+#   qualquer outro código — VERMELHO. Código que ninguém previu é estado que
+#              ninguém entende, e estado que ninguém entende não sai verde.
+#
+# O QUE IMPEDE ESTA ESCOLHA DE VIRAR "SILENCIAR O ACHADO": o achado tem quatro
+# saídas, e nenhuma delas é um arquivo que ninguém abre — o aviso amarelo na
+# página do run, o resumo do run (com a contagem), o relatório anexado como
+# artefato, e o pull request aberto com o número de sobreviventes no título. Se
+# um dia a casa quiser o código 2 vermelho também, é UMA LINHA neste arquivo (o
+# `exit 1` já está escrito no ramo, comentado) — mas aí é decisão do Marco, com o
+# custo na frente, não uma escolha silenciosa de sessão.
+#
+# ── ONDE MORA O PONTO DE PARADA DO RODÍZIO (desde 05/10/2026) ──────────────
+#
+# Marco, 05/10/2026, por questionário: o rodízio guarda o ponto de parada na
+# ramificação `mutacao/estado`; risco aceito: o estado verdadeiro mora fora da
+# main.
+#
+# Por que: até aqui o MUTACAO-ESTADO.json só voltava para o repositório pelo
+# pull request do robô, e esse pull request NUNCA abriu — o repositório tem
+# "Allow GitHub Actions to create and approve pull requests" desligado
+# (`can_approve_pull_request_reviews:false`). A `main` ficou parada na rodada 6
+# (28/07/2026), toda segunda partiu dela e mediu os MESMOS 20 pontos, com o
+# mesmo placar. Agora:
+#   · ANTES da bateria, o passo "Ler o ponto de parada" traz o
+#     MUTACAO-ESTADO.json da `mutacao/estado`, se ela existir no remoto; se
+#     não existir (primeira rodada), segue com o da `main`. O log diz de onde
+#     o estado veio.
+#   · DEPOIS da bateria, o passo "Guardar o ponto de parada" grava o estado
+#     novo e o relatório num commit em cima da `mutacao/estado` (criada a
+#     partir do HEAD da `main` na primeira vez) e empurra com
+#     `--force-with-lease`. Só esses dois arquivos mudam nessa ramificação.
+#   · SÓ UMA RODADA DA `main` GRAVA ALGUMA COISA NO REPOSITÓRIO. O botão
+#     "rodar agora" deixa escolher qualquer ramificação; uma rodada disparada
+#     em outra mede e publica o relatório SÓ como artefato do run. Ela não
+#     grava o ponto de parada, não empurra a ramificação semanal
+#     `mutacao/semanal-<data>` e não abre pull request — e diz isso no log,
+#     com `::notice`. Dois achados do revisor adversarial do PR #99
+#     (05/10/2026): sem esse filtro, um ramo com `calc.js` mexido gravava o
+#     estado e zerava a cobertura do `calc.js` da `main`; e o push da
+#     ramificação semanal SOBRESCREVIA o relatório da `main` daquele dia com
+#     um commit da outra frente — um pull request aberto à mão a partir dela
+#     levaria esse código para a `main`. A decisão do Marco aceitou o estado
+#     fora da main, não que qualquer ramificação escreva nele.
+#   · O pull request semanal continua existindo, só como RELATÓRIO: o rodízio
+#     não depende mais dele, e a falha em abri-lo continua não derrubando nada.
+#
+# E SE A `main` MUDAR UM ARQUIVO MEDIDO? Nada a fazer aqui, e foi conferido no
+# código: o estado guarda o sha de cada arquivo-alvo, e a bateria
+# (`selecionarMutacoes` em scripts/mutacao.mjs) compara esse sha com o do
+# arquivo do CHECKOUT. Numa rodada que GRAVA, o checkout é sempre a `main`,
+# porque o passo de gravação só roda em `refs/heads/main` (ver acima); numa
+# rodada de outra ramificação a comparação é contra ela, e por isso nada dessa
+# rodada é gravado. Arquivo que mudou tem a cobertura dele zerada, com aviso
+# no relatório, não importa de onde o JSON veio. A `mutacao/estado` envelhece em relação à `main` no resto da árvore,
+# e isso é esperado: dela só se lê o MUTACAO-ESTADO.json.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  # Segunda-feira, 09:00 UTC = 06:00 em São Paulo. Cai antes de o dia começar,
+  # então o resultado já está esperando quando alguém abre o repositório.
+  schedule:
+    - cron: '0 9 * * 1'
+  # O botão de "rodar agora", para o Marco não precisar esperar segunda-feira.
+  workflow_dispatch:
+
+# Escrever a branch e abrir o pull request precisa destas duas permissões. Nada
+# além disso: este workflow não toca em `main`, não apaga nada e não publica.
+permissions:
+  contents: write
+  pull-requests: write
+
+# Duas rodadas ao mesmo tempo brigariam pela mesma branch e pelo mesmo
+# MUTACAO-ESTADO.json. A segunda espera; nenhuma é cancelada, porque uma rodada
+# cancelada no meio não escreve o ponto de parada e o rodízio perde a vez.
+concurrency:
+  group: mutacao-semanal
+  cancel-in-progress: false
+
+jobs:
+  mutacao:
+    name: Bateria de mutação (rodízio semanal)
+    runs-on: ubuntu-latest
+    # ── O TETO DE TEMPO, E POR QUE ELE NÃO É MAIS QUEM DECIDE A COR ─────────
+    #
+    # Este teto já foi 40 min (rodada cancelada em 40,5 com 22 das 40 feitas) e
+    # virou 90 em 27/07/2026, com a conta de então: 1,84 min por mutação × 40 =
+    # ~74 min. O 90 foi folga sobre os 74.
+    #
+    # Medido em 30/08/2026: A CONTA ENVELHECEU E O TETO VOLTOU A MATAR A RODADA.
+    # As quatro rodadas agendadas de agosto — 03, 10, 17 e 24 — saíram todas
+    # `cancelled`. A de 24/08 correu 09:36:45 → 11:07:04 = 90 min 19 s: bateu no
+    # teto exato. E cancelamento NÃO É VERMELHO: a esteira morria toda segunda
+    # parecendo que tinha rodado. O último dado real da bateria é de 28/07, de
+    # uma rodada manual, e o rodízio está parado desde então. Medido no HEAD de
+    # 30/08/2026, rodando a própria bateria: o universo é de **465** pontos e o
+    # ponto de parada guarda 73 — dos quais só **52** ainda valem, porque
+    # calc.js, fechamento.js, planoFinanceiro.js e migracao.js mudaram de
+    # conteúdo desde a última rodada e a cobertura deles foi zerada de propósito
+    # (as linhas se moveram; o que já foi medido não vale mais).
+    #
+    # O QUE MUDOU NA CONTA (medição de 30/08/2026, não estimativa):
+    #   · uma rodada da suíte no runner do GitHub: 73 s em 27/07 (2273 testes)
+    #     → 130 s hoje (2822 testes). A suíte quase dobrou de custo.
+    #   · mutação MORTA = 1 rodada da suíte; SOBREVIVEU = 2 (a confirmação no
+    #     segundo fuso). Taxa de sobreviventes medida em 27/07: 11 de 40 = 27,5%.
+    #   · custo médio por mutação HOJE = 0,725×130 + 0,275×260 = 166 s = 2,76 min.
+    #   · mais ~6,5 min de despesa fixa (checkout, npm ci, canário nos dois
+    #     fusos, worktree, pull request).
+    #   · logo: 40 mutações pedem 6,5 + 110 = 117 min. O teto de 90 não cabe, e
+    #     é por isso que agosto inteiro saiu cancelado.
+    #
+    # A ESCOLHA, e o que ela custa: a rodada encolheu de 40 para 20 pontos
+    # (MUTACAO_LIMITE, no passo da bateria), o que dá 6,5 + 55 = ~62 min. O
+    # custo é o rodízio ficar mais lento — 465 pontos ÷ 20 = ~23 semanas por
+    # ciclo, contra ~12 no ritmo de 40. É um custo real, e é menor que o de
+    # hoje: uma rodada que sempre morre cobre ZERO ponto por semana. Se a casa
+    # quiser a cadência de volta sem alongar a rodada, o caminho é DOBRAR o
+    # agendamento (duas manhãs por semana em vez de uma) — mas isso é decisão do
+    # Marco, com o custo de esteira na frente, não escolha de sessão.
+    #
+    # E O TETO DEIXOU DE SER QUEM DECIDE: a bateria agora carrega o próprio
+    # ORÇAMENTO DE TEMPO (MUTACAO_ORCAMENTO_MIN=80). Ela olha o relógio entre
+    # duas mutações e, se o orçamento acabou, PARA, escreve o relatório e o
+    # ponto de parada com o que mediu, e sai VERMELHA dizendo em português que
+    # parou por tempo. Os 90 min deste teto ficam como backstop, 10 min acima do
+    # orçamento: quem fala primeiro é sempre a bateria, e o cancelamento mudo
+    # só volta a acontecer se o runner travar de vez.
+    timeout-minutes: 90
+    steps:
+      - name: Baixar o código
+        # fetch-depth: 0 = histórico inteiro. A bateria cria um `git worktree` a
+        # partir do HEAD para mutar em cópia, e worktree em clone raso não vai.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preparar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # A bateria roda a suíte de verdade a cada mutação, então precisa das
+      # dependências instaladas. O `prepare` do package.json aproveita e liga os
+      # hooks locais (core.hooksPath = .githooks) — o que é bom: o commit que
+      # este workflow faz mais abaixo passa pelas mesmas portas que qualquer
+      # commit da casa, em vez de ter um caminho privilegiado.
+      - name: Instalar dependências (limpo, a partir do package-lock)
+        run: npm ci
+
+      # Ver "ONDE MORA O PONTO DE PARADA" no cabeçalho. `ls-remote --exit-code`
+      # devolve 2 quando a ramificação não existe — é a primeira rodada, e só
+      # nesse caso o estado da `main` vale. Qualquer outra falha de leitura
+      # para tudo: seguir com o estado velho em silêncio é exatamente o defeito
+      # que este passo existe para fechar (os mesmos 20 pontos toda semana).
+      - name: Ler o ponto de parada do rodízio (ramificação mutacao/estado)
+        id: estado
+        run: |
+          # Impressão digital do relatório ANTES da bateria: o passo de gravação
+          # só leva o MUTACAO-RESULTADO.md se a bateria o reescreveu nesta rodada
+          # (senão gravaria por cima o relatório velho da main).
+          echo "resultado_antes=$(git hash-object MUTACAO-RESULTADO.md 2>/dev/null || echo ausente)" >> "$GITHUB_OUTPUT"
+          set +e
+          git ls-remote --exit-code --heads origin refs/heads/mutacao/estado > /dev/null
+          existe=$?
+          set -e
+          if [ "$existe" = "2" ]; then
+            echo "origem=main" >> "$GITHUB_OUTPUT"
+            echo "pai=" >> "$GITHUB_OUTPUT"
+            echo "Ponto de parada: a ramificação 'mutacao/estado' ainda NÃO existe no remoto."
+            echo "  Primeira rodada nesse esquema — usando o MUTACAO-ESTADO.json da main."
+            exit 0
+          fi
+          if [ "$existe" != "0" ]; then
+            echo "✗ Não consegui consultar a ramificação 'mutacao/estado' (git ls-remote saiu $existe)."
+            echo "  Não sigo com o estado da main: isso mediria de novo pontos já medidos."
+            exit 1
+          fi
+          git fetch --quiet origin refs/heads/mutacao/estado
+          pai=$(git rev-parse FETCH_HEAD)
+          if ! git show FETCH_HEAD:MUTACAO-ESTADO.json > "$RUNNER_TEMP/estado-rodizio.json"; then
+            echo "✗ A ramificação 'mutacao/estado' existe, mas não tem MUTACAO-ESTADO.json"
+            echo "  (commit $pai). Alguém mexeu nela à mão — confira antes de rodar de novo."
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/estado-rodizio.json" MUTACAO-ESTADO.json
+          echo "origem=mutacao/estado" >> "$GITHUB_OUTPUT"
+          echo "pai=$pai" >> "$GITHUB_OUTPUT"
+          echo "Ponto de parada lido da ramificação 'mutacao/estado' (commit ${pai:0:7})."
+          node -e 'const e=require("./MUTACAO-ESTADO.json"); console.log(`  rodada ${e.rodadas}, atualizado em ${e.atualizadoEm}`)'
+
+      - name: Rodar a bateria (o código de saída é lido, não obedecido aqui)
+        id: bateria
+        env:
+          # 20 pontos por rodada, e o número sai da medição de 30/08/2026 que
+          # está no cabeçalho deste arquivo — não de chute. Mexer nele exige
+          # refazer a conta ali e escrever a medição nova ao lado.
+          MUTACAO_LIMITE: '20'
+          # Orçamento de tempo da rodada. Fica 10 min ABAIXO do timeout-minutes
+          # de propósito: quem anuncia o estouro é a bateria, em português e em
+          # vermelho, e não o cancelamento mudo do GitHub.
+          MUTACAO_ORCAMENTO_MIN: '80'
+          # Teto de UMA rodada da suíte. Era constante enterrada de 180 s,
+          # escolhida quando a suíte custava 73 s neste runner — 2,47x de folga.
+          # Medido na rodada 33299587429 (30/08/2026): a suíte custa 124,6 s, a
+          # folga tinha caído para 1,44x, e a rodada saiu 9 medidas / 11 ERRO,
+          # todas com "tempo esgotado (180s)", da mutação 10 em diante e sem se
+          # recuperar. 300 s devolve a folga original (2,41x). Quem segura o pior
+          # caso é o MUTACAO_ORCAMENTO_MIN acima, não este número.
+          #
+          # PROVADO na rodada 33302026294, mesmos 20 pontos e só o teto diferente:
+          #   teto 180 s → 9 MORTAS · 0 SOBREVIVERAM · 11 ERROS · 9 de 20 medidos
+          #   teto 300 s → 16 MORTAS · 3 SOBREVIVERAM · 1 ERRO · 19 de 20 medidos
+          # A degradação por processos órfãos foi medida na própria rodada: a suíte
+          # passa de 128 s para 184 s depois do travador. 184 estoura 180 e cabe em
+          # 300 — é literalmente a conta inteira do defeito.
+          #
+          # DESDE 05/10/2026 ESTE NÚMERO TAMBÉM É UMA RÉGUA: a mutação que estoura
+          # o teto só conta como MORTA-POR-TRAVAMENTO se ele for ≥ 2× o canário
+          # limpo (~128 s aqui → 2,3×). Se a suíte crescer até o canário passar
+          # de 150 s, o travador volta a dar ERRO e código 1 — e a bateria diz
+          # isso no log do canário. Subir este número é a saída, com a medição.
+          # Na mesma data o teto passou a matar o GRUPO de processos da suíte,
+          # não só o filho: os órfãos de 30/08 não deviam mais aparecer.
+          MUTACAO_TEMPO_SUITE_S: '300'
+        run: |
+          set +e
+          node scripts/mutacao.mjs
+          codigo=$?
+          set -e
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          echo "A bateria terminou com código de saída $codigo."
+          echo "  0 = mediu tudo e todo sobrevivente tem julgamento datado"
+          echo "  1 = A RODADA NÃO MEDIU (o passo de veredito, no fim, fica vermelho)"
+          echo "  2 = mediu e há sobrevivente sem julgamento (vira aviso e pull request)"
+
+      # O relatório sobe SEMPRE — inclusive quando a rodada não mediu, porque aí
+      # ele é a única pista do que aconteceu, e inclusive quando o pull request
+      # não puder ser aberto.
+      - name: Anexar o relatório da rodada ao run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutacao-resultado
+          path: |
+            MUTACAO-RESULTADO.md
+            MUTACAO-ESTADO.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      # ─── O PONTO DE PARADA DO RODÍZIO VOLTA PARA A `mutacao/estado` ────────
+      # MUTACAO-ESTADO.json guarda quais pontos já foram exercitados. Sem ele
+      # guardado, a rodada seguinte repete exatamente os mesmos pontos e o
+      # rodízio morre — foi o que aconteceu de 30/08 a 05/10/2026, porque ele
+      # só voltava pelo pull request, e o pull request nunca abriu.
+      #
+      # Marco, 05/10/2026, por questionário: o rodízio guarda o ponto de parada
+      # na ramificação `mutacao/estado`; risco aceito: o estado verdadeiro mora
+      # fora da main. NUNCA na `main`: a junção nela é sempre do Marco.
+      #
+      # SÓ NA `main` (`github.ref == 'refs/heads/main'`): o agendamento sempre
+      # roda nela, e o botão manual em outra ramificação mede sem gravar — o
+      # passo seguinte diz isso no log. Por isso o HEAD abaixo é o da `main`.
+      #
+      # O commit é feito numa área de trabalho à parte (git worktree), em cima
+      # da ponta da `mutacao/estado` lida antes da bateria — ou do HEAD da
+      # `main` na primeira vez —, para não mexer na árvore que o passo do pull
+      # request usa logo abaixo. O MUTACAO-RESULTADO.md só vai junto se a
+      # bateria o reescreveu nesta rodada. Ele passa pelos mesmos hooks de qualquer
+      # commit da casa. O push leva `--force-with-lease` com a ponta esperada:
+      # se outra rodada tiver gravado no meio, ele recusa em vez de apagar.
+      # Falhar aqui é VERMELHO: sem este passo, o rodízio volta a parar.
+      - name: Guardar o ponto de parada na ramificação mutacao/estado
+        id: gravacao
+        if: always() && steps.bateria.outputs.codigo != '' && github.ref == 'refs/heads/main'
+        env:
+          PAI: ${{ steps.estado.outputs.pai }}
+          CODIGO: ${{ steps.bateria.outputs.codigo }}
+          RESULTADO_ANTES: ${{ steps.estado.outputs.resultado_antes }}
+        run: |
+          if [ ! -f MUTACAO-ESTADO.json ]; then
+            echo "✗ A bateria terminou sem MUTACAO-ESTADO.json — nada a guardar, e o rodízio não avança."
+            exit 1
+          fi
+          git config user.name  "esteira — mutação semanal"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "$PAI" ]; then
+            BASE="$PAI"
+            LEASE="refs/heads/mutacao/estado:$PAI"
+          else
+            BASE=$(git rev-parse HEAD)
+            LEASE="refs/heads/mutacao/estado:"
+          fi
+
+          AREA="$RUNNER_TEMP/area-mutacao-estado"
+          git worktree add --detach --quiet "$AREA" "$BASE"
+          ARQUIVOS="MUTACAO-ESTADO.json"
+          if [ -f MUTACAO-RESULTADO.md ] && [ "$(git hash-object MUTACAO-RESULTADO.md)" != "$RESULTADO_ANTES" ]; then
+            ARQUIVOS="$ARQUIVOS MUTACAO-RESULTADO.md"
+          else
+            echo "O MUTACAO-RESULTADO.md não foi reescrito nesta rodada — fica de fora, para não"
+            echo "  gravar o relatório velho por cima do da 'mutacao/estado'."
+          fi
+          cp $ARQUIVOS "$AREA"/
+          cd "$AREA"
+          git add -- $ARQUIVOS
+          if git diff --cached --quiet; then
+            echo "O ponto de parada não mudou — nada a gravar na 'mutacao/estado'."
+            exit 0
+          fi
+          SEMANA=$(date -u +%Y-%m-%d)
+          git commit --quiet -m "Ponto de parada do rodízio de mutação, rodada de $SEMANA
+
+          Gravado pelo workflow .github/workflows/mutacao-semanal.yml.
+          Código de saída da bateria: $CODIGO. Só MUTACAO-ESTADO.json e
+          MUTACAO-RESULTADO.md mudam nesta ramificação; a próxima rodada lê
+          o estado daqui (Marco, 05/10/2026)."
+
+          if ! git push --force-with-lease="$LEASE" origin "HEAD:refs/heads/mutacao/estado"; then
+            echo "✗ NÃO CONSEGUI GUARDAR O PONTO DE PARADA na 'mutacao/estado'."
+            echo ""
+            echo "  Sem ele, a rodada da semana que vem repete os mesmos pontos."
+            echo "  Se o push foi recusado pelo lease, outra rodada gravou no meio:"
+            echo "  rode de novo. Se foi permissão, confira 'contents: write' e se a"
+            echo "  ramificação 'mutacao/estado' ganhou proteção."
+            exit 1
+          fi
+          echo "Ponto de parada guardado em 'mutacao/estado' (commit $(git rev-parse --short HEAD))."
+
+      - name: Avisar que esta ramificação não grava o ponto de parada
+        if: always() && github.ref != 'refs/heads/main'
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          echo "::notice title=Mutação: nada gravado no repositório::Esta rodada foi disparada em '$REF', não na main. Ela mediu e o relatório está anexado como artefato deste run, e só ali. O ponto de parada do rodízio (ramificação mutacao/estado) não foi alterado, a ramificação semanal mutacao/semanal-<data> não foi empurrada e nenhum pull request foi aberto — só uma rodada da main grava."
+          echo "Rodada em '$REF': nada gravado no repositório (só a main grava). O relatório está no artefato do run."
+
+      # SÓ NA `main`, como a gravação acima: em outra ramificação, empurrar a
+      # `mutacao/semanal-<data>` com `--force-with-lease` apagava o relatório
+      # da `main` daquele dia e deixava ali um commit da outra frente
+      # (reconferência do PR #99, 05/10/2026).
+      #
+      # O PULL REQUEST SEMANAL É SÓ O RELATÓRIO desde 05/10/2026 — o rodízio
+      # não depende mais dele (ver o passo acima). Ele continua existindo para
+      # o resultado ter uma página para ler e comentar, e a falha em abri-lo
+      # continua sendo aviso, nunca vermelho.
+      - name: Guardar o resultado numa branch e abrir o pull request
+        if: always() && steps.bateria.outputs.codigo != '' && github.ref == 'refs/heads/main'
+        id: entrega
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODIGO: ${{ steps.bateria.outputs.codigo }}
+          # O texto sobre o ponto de parada depende de a gravação ter dado
+          # certo: 'success', 'failure' ou 'skipped'.
+          GRAVACAO: ${{ steps.gravacao.outcome }}
+        run: |
+          if [ -z "$(git status --porcelain -- MUTACAO-RESULTADO.md MUTACAO-ESTADO.json)" ]; then
+            echo "Nada mudou em MUTACAO-RESULTADO.md nem em MUTACAO-ESTADO.json —"
+            echo "nenhuma branch a criar, nenhum pull request a abrir."
+            echo "abriu=nao" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SEMANA=$(date -u +%Y-%m-%d)
+          BRANCH="mutacao/semanal-$SEMANA"
+
+          git config user.name  "esteira — mutação semanal"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git switch -C "$BRANCH"
+          git add -- MUTACAO-RESULTADO.md MUTACAO-ESTADO.json
+
+          # O placar da rodada: a linha "**N MORTAS** · **N SOBREVIVERAM** ·
+          # **N ERROS**" que o relatório escreve logo abaixo de "## Resultado".
+          RESUMO=$(grep -m1 -E '^\*\*[0-9]+ MORTAS\*\*' MUTACAO-RESULTADO.md || true)
+          git commit -m "Mutação semanal de $SEMANA: resultado e ponto de parada do rodízio
+
+          Rodada automática do workflow .github/workflows/mutacao-semanal.yml.
+          Código de saída da bateria: $CODIGO (0 = tudo medido e julgado,
+          1 = a rodada não mediu, 2 = há sobrevivente sem julgamento).
+
+          O MUTACAO-ESTADO.json vem junto como registro. O rodízio NÃO depende
+          deste commit: o ponto de parada que vale mora na ramificação
+          mutacao/estado (Marco, 05/10/2026)."
+
+          if ! git push --force-with-lease origin "HEAD:refs/heads/$BRANCH"; then
+            echo "✗ NÃO CONSEGUI GUARDAR O RESULTADO no repositório."
+            echo ""
+            echo "  O push da branch '$BRANCH' falhou. O relatório desta rodada está"
+            echo "  anexado ao run como artefato. O rodízio não depende deste push."
+            if [ "$GRAVACAO" = "success" ]; then
+              echo "  O ponto de parada foi guardado na 'mutacao/estado' no passo anterior."
+            else
+              echo "  ATENÇÃO: o ponto de parada também NÃO foi guardado (passo 'Guardar o"
+              echo "  ponto de parada na ramificação mutacao/estado': $GRAVACAO)."
+            fi
+            echo ""
+            echo "  Onde olhar: as permissões deste workflow (contents: write) e se a"
+            echo "  branch '$BRANCH' está protegida."
+            exit 1
+          fi
+          echo "abriu=sim" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          if [ "$CODIGO" = "2" ]; then
+            TITULO="Mutação semanal de $SEMANA — há sobrevivente sem julgamento"
+          elif [ "$CODIGO" = "0" ]; then
+            TITULO="Mutação semanal de $SEMANA — tudo medido e julgado"
+          else
+            TITULO="Mutação semanal de $SEMANA — A RODADA NÃO MEDIU (código $CODIGO)"
+          fi
+
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            echo "Já existe pull request aberto para '$BRANCH' — o push acima o atualizou."
+            exit 0
+          fi
+
+          if ! gh pr create \
+                 --base main \
+                 --head "$BRANCH" \
+                 --title "$TITULO" \
+                 --body "Rodada automática da bateria de mutação (\`.github/workflows/mutacao-semanal.yml\`).
+
+          **Código de saída da bateria: \`$CODIGO\`** — 0 = mediu tudo e todo sobrevivente tem julgamento datado · 1 = a rodada NÃO mediu · 2 = há sobrevivente sem julgamento.
+
+          $RESUMO
+
+          O relatório completo é o \`MUTACAO-RESULTADO.md\` deste pull request (e está anexado ao run como artefato). O \`MUTACAO-ESTADO.json\` vem junto como registro. **O rodízio não depende deste pull request:** o ponto de parada que vale mora na ramificação \`mutacao/estado\`, gravada pelo próprio workflow (Marco, 05/10/2026). Juntar ou fechar este pull request não muda quais pontos a próxima rodada mede.
+
+          **Sobrevivente sem julgamento se resolve de dois jeitos:** escrevendo o teste que mata a mutação, ou julgando-a em \`MUTACAO-JULGAMENTOS.md\` (EQUIVALENTE / QUASE-EQUIVALENTE / TESTE-FALTANDO / ACEITO-COM-RISCO, com data)."; then
+            if [ "$GRAVACAO" = "success" ]; then
+              SOBRE_O_ESTADO="O rodízio NÃO depende deste pull request: o ponto de parada foi guardado na ramificação 'mutacao/estado'."
+            else
+              SOBRE_O_ESTADO="O rodízio não depende deste pull request, MAS o ponto de parada também não foi guardado na 'mutacao/estado' nesta rodada (passo de gravação: $GRAVACAO) — veja aquele passo."
+            fi
+            echo "::warning title=Mutação semanal::O resultado foi guardado na branch '$BRANCH', mas não consegui abrir o pull request. Costuma ser a permissão 'Allow GitHub Actions to create and approve pull requests' (Settings › Actions › General) desligada no repositório. $SOBRE_O_ESTADO Se quiser a página do relatório, abra o pull request à mão a partir de '$BRANCH'."
+          fi
+
+      # ─── O VEREDITO, POR ÚLTIMO ────────────────────────────────────────────
+      # Fica no fim de propósito: o relatório já subiu como artefato e o resultado
+      # já está guardado na branch antes de qualquer coisa ficar vermelha. Assim
+      # uma rodada que não mediu ainda deixa a pista para descobrir por quê.
+      - name: Veredito da rodada
+        if: always()
+        env:
+          CODIGO: ${{ steps.bateria.outputs.codigo }}
+        run: |
+          if [ -z "$CODIGO" ]; then
+            echo "✗ A BATERIA NÃO CHEGOU A RODAR — o passo que a executa não deixou"
+            echo "  nenhum código de saída. Veja os passos acima: costuma ser falha no"
+            echo "  'npm ci', o passo 'Ler o ponto de parada do rodízio' recusando seguir"
+            echo "  (ramificação mutacao/estado ilegível ou sem o MUTACAO-ESTADO.json),"
+            echo "  ou o teto de 90 minutos deste trabalho esgotado — que agora"
+            echo "  só acontece se o runner travar, porque a bateria carrega um orçamento"
+            echo "  próprio de 80 min e fala antes (MUTACAO_ORCAMENTO_MIN)."
+            echo "  Isto é vermelho porque nada foi medido, não porque nada foi achado."
+            exit 1
+          fi
+
+          SOBREVIVENTES=$(grep -c '| SOBREVIVEU |' MUTACAO-RESULTADO.md 2>/dev/null || echo 0)
+
+          # O placar da rodada mora na linha logo abaixo do título "## Resultado"
+          # do relatório ("**N MORTAS** · **N SOBREVIVERAM** · **N ERROS**").
+          # Puxá-lo para o resumo do run é o que faz alguém ler o número sem
+          # precisar baixar o artefato.
+          PLACAR=$(grep -m1 -E '^\*\*[0-9]+ MORTAS\*\*' MUTACAO-RESULTADO.md 2>/dev/null || true)
+          {
+            echo "## Bateria de mutação — rodada semanal"
+            echo ""
+            echo "Código de saída: \`$CODIGO\`"
+            echo ""
+            if [ -n "$PLACAR" ]; then
+              echo "$PLACAR"
+            else
+              echo "_(não achei a linha de placar no MUTACAO-RESULTADO.md — confira o artefato deste run.)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          case "$CODIGO" in
+            0)
+              echo "✓ A rodada mediu tudo e todo sobrevivente tem julgamento datado."
+              ;;
+            2)
+              # MEDIU E ACHOU. Verde de propósito — a explicação inteira está no
+              # cabeçalho deste arquivo. O achado sai por quatro portas: este
+              # aviso amarelo, o resumo do run, o artefato e o pull request.
+              echo "::warning title=Mutação semanal: achado aberto::A rodada mediu e encontrou sobrevivente sem julgamento — cada um é um lugar onde estragar um número de propósito NÃO fez nenhum teste gritar. Leia o MUTACAO-RESULTADO.md do pull request desta rodada e ou escreva o teste que mata, ou julgue em MUTACAO-JULGAMENTOS.md (EQUIVALENTE / QUASE-EQUIVALENTE / TESTE-FALTANDO / ACEITO-COM-RISCO, com data)."
+              echo ""
+              echo "A rodada MEDIU. Há sobrevivente sem julgamento — achado aberto, não"
+              echo "infraestrutura quebrada. Por isso este trabalho fica verde e o achado"
+              echo "sai como aviso, no resumo do run e no pull request desta rodada."
+              echo ""
+              echo "Se um dia a casa quiser que isto derrube a esteira, é a linha abaixo,"
+              echo "sem comentário — mas é decisão do Marco, não de uma sessão:"
+              echo "    # exit 1"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Achado aberto:** há sobrevivente sem julgamento nesta rodada ($SOBREVIVENTES linha(s) \`SOBREVIVEU\` no relatório). Julgue em \`MUTACAO-JULGAMENTOS.md\` ou escreva o teste que mata." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            1)
+              echo "✗ A RODADA NÃO MEDIU — e é por isso que este trabalho está vermelho."
+              echo ""
+              echo "  Código de saída 1 significa que algum ponto não chegou a ser"
+              echo "  exercitado: ambiente quebrado, orçamento de tempo esgotado ou"
+              echo "  coleta parcial. O relatório diz QUAL dos três — a parada por"
+              echo "  orçamento tem seção própria, e ela é a única em que os números"
+              echo "  do placar valem (só que para menos pontos do que os prometidos)."
+              echo "  Uma rodada que não mediu NUNCA pode parecer uma rodada com nota"
+              echo "  máxima — é a exigência escrita na decisão 13 do Marco."
+              echo ""
+              echo "  Onde olhar: a saída do passo 'Rodar a bateria' acima e o"
+              echo "  MUTACAO-RESULTADO.md anexado a este run (coluna ERRO)."
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**A rodada NÃO mediu** (código 1). Nada aqui vale como nota." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+            *)
+              echo "✗ A bateria saiu com o código $CODIGO, que não é 0, 1 nem 2."
+              echo ""
+              echo "  Este workflow só sabe interpretar três códigos. Um quarto significa"
+              echo "  que scripts/mutacao.mjs passou a dizer alguma coisa nova e ninguém"
+              echo "  ensinou a esteira a ler — estado que ninguém entende não sai verde."
+              echo ""
+              echo "  O que fazer: confira o fim de scripts/mutacao.mjs e acrescente o"
+              echo "  caso novo ao 'case' deste passo, dizendo se ele é vermelho ou aviso."
+              exit 1
+              ;;
+          esac

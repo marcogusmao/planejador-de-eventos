@@ -1,0 +1,185 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# padroes-dados.txt — a ÚNICA lista de padrões da trava de dados.
+#
+# Quem lê este arquivo: scripts/trava-dados.sh, e só ele. Quem chama o script:
+# .githooks/pre-commit e .githooks/pre-push (máquina do Marco) e
+# .github/workflows/ci.yml (esteira). Antes da Sessão H4-D esta lista existia
+# DUAS vezes, copiada à mão, e o comentário do próprio ci.yml admitia "se um dia
+# mudar lá, muda aqui também". Agora muda aqui, uma vez, e todos mudam juntos.
+#
+# FORMATO — três tipos de linha
+#
+#   #: <rótulo em português>
+#       O que o PRÓXIMO padrão protege, dito em uma frase que o Marco entende:
+#       "planilha de evento", "backup do app". É OBRIGATÓRIO — a trava recusa a
+#       lista inteira se um padrão não tiver rótulo. Motivo: a recusa mostra ESTE
+#       texto para quem foi barrado. Antes ela imprimia a expressão regular crua,
+#       e quem levava a recusa tinha de decifrar '\.(xlsx|xls|xlsm...)[^/]*$' para
+#       descobrir que o problema era uma planilha. A expressão continua aparecendo,
+#       mas no fim, como referência para quem for mexer NESTE arquivo.
+#
+#   <expressão regular>
+#       Uma expressão ESTENDIDA (grep -E) por linha, casada contra o CAMINHO do
+#       arquivo dentro do repositório (ex.: docs/planilha.xlsx). Comparação sem
+#       diferenciar maiúscula de minúscula (grep -Ei): .XLSX cai no padrão de .xlsx.
+#
+#   !<expressão regular>
+#       ISENÇÃO do padrão IMEDIATAMENTE ACIMA: se o caminho casa com o padrão mas
+#       também casa com esta linha, não é barrado. O escopo é o padrão de cima, de
+#       propósito — uma isenção global valeria também para o padrão do 'token', e
+#       ninguém quer isentar segredo por tabela.
+#
+#   Linha cujo primeiro caractere não-branco é '#' (e não é '#:') é comentário.
+#   Linha em branco é ignorada. Espaço no FIM da linha é descartado na leitura.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# A CAUDA — o que a gente tolera DEPOIS da extensão de verdade
+#
+#   O padrão original terminava em \.(xlsx|xls)$ — âncora dura. Três nomes reais
+#   escapavam por ali (medido na Sessão H4, 25/07/2026):
+#       orçamento.xlsx.bak      cópia que o editor deixa para trás
+#       backups-festa.xlsx.old  renomeado à mão antes de mexer
+#       "orçamento.xlsx "       espaço sobrando, colado de outro lugar
+#   A primeira correção foi tolerar uma LISTA FECHADA de sufixos residuais:
+#       (\.(bak|old|orig|tmp|temp|save|salvo|copy|copia|backup|final|[0-9]+))*[[:space:]]*$
+#   A conferência de 25/07 derrubou essa lista fechada: ela deixava passar tudo o
+#   que não estivesse escrito nela —
+#       orçamento.xlsx.zip   orçamento.xlsx.gz     orçamento.xlsx.rascunho
+#       orçamento.xlsx.txt   orçamento.xlsx-final  orçamento.xlsx~
+#       orçamento.xlsx.      (ponto sobrando no fim: irmão exato do espaço, e o
+#                             espaço já tinha sido corrigido de propósito)
+#   Toda vez que alguém inventasse um sufixo novo, a lista ficava para trás.
+#
+#   A ESCOLHA (e o porquê): trocamos a lista fechada de sufixos por um critério.
+#   A cauda passa a ser [^/]* — QUALQUER coisa depois da extensão, desde que no
+#   mesmo nome de arquivo (o [^/] impede que 'docs/planilha.xlsx-antigo/leia.md'
+#   seja lido como planilha). Isso barra por padrão, inclusive o sufixo que ainda
+#   não foi inventado.
+#
+#   Por que isso não vira bloqueio geral: o motivo de a lista ser fechada era não
+#   barrar exemplo.xlsx.md — a documentação que FALA de uma planilha. Isso agora é
+#   resolvido pelo outro lado, com uma isenção explícita: se o nome TERMINA numa
+#   extensão de DOCUMENTO conhecida (.md, .jsx, .png, .sh...), é documento, não
+#   planilha. É um critério, não um catálogo: o que muda com o tempo é a lista de
+#   coisas que a gente ESCREVE (documentação, código, imagem), que é curta e nossa,
+#   e não a lista infinita de jeitos de renomear um arquivo de dado.
+#
+#   O que ficou FORA da lista de documento, de propósito:
+#       .txt  — 'orçamento.xlsx.txt' é planilha renomeada, não documentação; neste
+#               repositório documentação é .md, nenhum .txt é documento de verdade.
+#       .zip / .gz — compactar não deixa de ser o dado; é o jeito mais comum de
+#               "guardar a planilha junto do projeto".
+#       .rascunho / ~ / -final — são renomeações humanas, exatamente o caso que
+#               esta seção veio fechar.
+#       .json — está fora porque planilha virada JSON continua sendo o dinheiro da
+#               festa; e porque incluí-la anularia os padrões de JSON lá embaixo.
+#
+# COMO ACRESCENTAR UM PADRÃO
+#   Escreva o rótulo (#:), depois um comentário dizendo QUEM gera esse arquivo
+#   (arquivo:linha do app, quando houver) e POR QUE ele é dado de negócio, e só
+#   então a linha do padrão. Padrão sem gerador conhecido vira regra morta e
+#   atrapalha mais do que protege.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── Banco de dados ───────────────────────────────────────────────────────────
+# Defensivo (hardening 2.1, 18/07/2026): este app nem usa banco, mas uma cópia de
+# teste do banco do Financeiro não entra aqui por engano.
+#: banco de dados (cópia do banco do Financeiro)
+\.(db|sqlite|sqlite3)[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+
+
+# ── Planilhas ────────────────────────────────────────────────────────────────
+# .xlsx/.xls: planilha de evento do Marco, e o orçamento do produtor que o próprio
+#   app baixa (src/components/OrcamentoProdutorModal.jsx:115 → src/lib/xlsxOrcamentoV2.js),
+#   com custo, fornecedor e valor de PATROCÍNIO.
+# .xlsm/.xlsb: o importador do app usa SheetJS, que lê os dois EXATAMENTE como lê
+#   .xlsx (src/components/ImportModal.jsx). O accept=".xlsx,.xls,.json" do <input>
+#   não protege nada, porque o arrastar-e-soltar (ImportModal.jsx:213 e
+#   OrcamentoProdutorModal.jsx:753) ignora o accept — uma planilha real salva como
+#   .xlsm entra pelo mesmo caminho de uma .xlsx.
+# .numbers: formato nativo do Mac, que é a máquina real do Marco.
+# .ods: export de LibreOffice/Google Sheets, que o SheetJS também lê.
+#: planilha de evento (custo, fornecedor e valor de patrocínio)
+\.(xlsx|xls|xlsm|xlsb|numbers|ods)[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+
+
+# ── CSV: o dinheiro da festa que o app manda para o contador ─────────────────
+# ACHADO MAIS GRAVE da conferência de 25/07/2026: nem a trava nem o .gitignore
+# cobriam CSV nenhum, e são TRÊS famílias que o próprio app baixa:
+#   contador-<festa>-<data>.csv   src/lib/exportPagamentos.js:228  (pagamento por
+#                                 categoria/marca/evento, no formato do contador)
+#   pagamentos-<festa>-<data>.csv src/lib/exportPagamentos.js:233  (vencimento,
+#                                 fornecedor, valor, status, parcela e TOTAL)
+#   plano-<festa>-<data>.csv      src/lib/planoFinanceiro.js:896   (receita do
+#                                 cenário realista + itens de custo; é a ponte 2)
+# Nenhum CSV legítimo estava rastreado quando esta linha entrou (git ls-files),
+# então fechar esta rede custou zero hoje.
+#: CSV de pagamento que o app baixa para o contador
+\.csv[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+
+
+# ── Pastas inteiras de dado ──────────────────────────────────────────────────
+# backups/ e backup/ — destino do backup automático da ponte com o Financeiro e
+# do backup que a casca nativa grava ao sair (scripts/appwrap.swift:266).
+#: pasta de backup (a base inteira do Marco)
+(^|/)backups?/
+# importacoes/ — pasta de entrada do importador. As quatro grafias existem porque
+# o Marco nomeia pasta em português e o Finder aceita o acento; escritas por
+# extenso (e não com [cç]) porque uma classe de colchetes com caractere
+# multi-byte não é confiável quando o grep roda em locale C, que é o do CI.
+#: pasta de entrada do importador (planilha real de festa)
+(^|/)(importacoes|importações|importacões|importaçoes)/
+
+
+# ── JSON: pelo nome que o app CARIMBA, nunca pela extensão ───────────────────
+# '\.json$' puro está PROIBIDO aqui: barraria package.json, package-lock.json e
+# .claude/launch.json no primeiro commit de rotina.
+#
+# O que distingue o dado do projeto NÃO é só o prefixo — é o prefixo MAIS o
+# carimbo de data que o app põe no nome. As três famílias geradas são:
+#   previsao-eventos-backup-<AAAA-MM-DD>.json          src/lib/storage.js:297
+#       (exportBackup — o backup manual, a base inteira)
+#   previsao-eventos-BRUTO-ILEGIVEL-<AAAA-MM-DDTHH-MM-SS>.json  src/lib/storage.js:139
+#       (exportarQuarentena — a cópia crua do armazenamento do navegador do Marco,
+#        salva quando o parse falha. Este nome não contém a palavra "backup" e por
+#        isso escapava do padrão 'backup.*\.json$' de baixo: foi medido entrando
+#        num commit com exit 0 e sem uma palavra de aviso.)
+#   planejador-<AAAA-MM-DD>-<HHMMSS>.json              scripts/appwrap.swift:266
+#       (o backup que o Planejador.app grava AO SAIR, em APP_BACKUP_DIR="backups"
+#        com APP_BACKUP_PREFIXO="planejador" — Planejador.app/Contents/Info.plist.
+#        É a base inteira do Marco. Só a pasta backups/ o protegia: movido para
+#        restaurar, ou copiado para docs/, ele entrava sem uma palavra.)
+#
+# POR QUE O CARIMBO DE DATA, e não só o prefixo (aperto de 25/07/2026): o padrão
+# antigo era 'previsao-eventos-.*\.json', que barraria previsao-eventos-icones.json
+# ou previsao-eventos-manifesto.json — arquivo de PROJETO legítimo, que só tem o
+# azar de começar com o nome do app. Exigir AAAA-MM-DD no nome casa o que o app
+# realmente gera (as três famílias carimbam a data) e devolve o nome do app para
+# quem quiser usá-lo num arquivo de projeto.
+#: backup ou despejo de quarentena que o app baixa (a base inteira do Marco)
+(^|/)previsao-eventos-.*[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*\.json[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+#: backup que o Planejador.app grava ao fechar (a base inteira do Marco)
+(^|/)planejador-[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*\.json[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+# Rede mais larga que as de cima, mantida da lista original: pega backup JSON com
+# qualquer outro nome (ex.: backup-produção.json, backups-do-marco.json).
+#: backup JSON de dados reais com qualquer outro nome
+backup.*\.json[^/]*$
+!\.(md|markdown|html|htm|jsx|tsx|js|mjs|cjs|ts|css|scss|svg|png|jpg|jpeg|gif|webp|pdf|sh|yml|yaml|toml|py|swift|command)[.[:space:]]*$
+
+
+# ── Segredo ──────────────────────────────────────────────────────────────────
+# Token da ponte com o Financeiro (H2-B, 18/07/2026): o token vive no
+# localStorage, não em arquivo — nenhum arquivo de CÓDIGO usa esses nomes, de
+# propósito (o módulo chama-se chavePonte.js). Sem âncora: pega em qualquer
+# posição do caminho. Sem isenção de propósito: um 'token-da-ponte.md' também não
+# entra, porque o risco aqui é o CONTEÚDO, não o formato.
+#: arquivo com o token da ponte com o Financeiro
+token
+#: arquivo de segredo (.secret)
+\.secret[^/]*$

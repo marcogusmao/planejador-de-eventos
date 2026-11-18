@@ -1,0 +1,56 @@
+# O que o build do Planejador no Railway pode ver (Marco, 05/10/2026).
+#
+# LISTA DE ENTRADA, não de saída: tudo fica fora (linha `*`), e só volta o que o
+# `Dockerfile` precisa para construir o `dist/` e rodar o servidor. Uma lista de
+# saída deixa passar o arquivo que ninguém lembrou de listar — e nesta pasta
+# moram backups JSON, planilhas de festa e o Planejador.app do Marco.
+#
+# Ficam fora por esta linha, entre outros: node_modules, dist, .git, .claude,
+# .conductor, .context, Planejador.app, "Iniciar Previsão.command", importacoes/,
+# backups/, *.backup.json, *.xlsx, *.csv, *.numbers, *.ods, *.log, MUTACAO-*,
+# docs/, graphify-out/ e todos os .md da raiz.
+*
+
+# O que o build precisa.
+!package.json
+!package-lock.json
+!vendor/
+!.githooks/ligar-trava.sh
+# O `npm run build` passa pela fila (PR #96). Na imagem não há ~/bin/fila, e o
+# script roda o comando direto — mas ele próprio tem de estar aqui. Sem esta
+# linha o build do Railway quebrou em 05/10/2026 ("can't open
+# 'scripts/com-fila.sh'"). Guarda: servidor/imagem.test.mjs.
+!scripts/com-fila.sh
+!index.html
+!vite.config.js
+!public/
+!src/
+!servidor/
+
+# Dentro do que voltou, o dado real sai DE NOVO — os mesmos padrões da trava de
+# dados (scripts/padroes-dados.txt): um arquivo esquecido em src/ ou public/ não
+# vira parte da imagem.
+**/*.db*
+**/*.sqlite*
+**/*.xlsx*
+**/*.xls
+**/*.xls.*
+**/*.xlsm*
+**/*.xlsb*
+**/*.numbers*
+**/*.ods*
+**/*.csv*
+**/backup/
+**/backups/
+**/importacoes/
+**/importações/
+**/importacões/
+**/importaçoes/
+**/*backup*.json*
+**/previsao-eventos-*-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.json*
+**/planejador-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.json*
+**/*token*
+**/*.secret*
+**/.env*
+**/*.log
+**/.DS_Store

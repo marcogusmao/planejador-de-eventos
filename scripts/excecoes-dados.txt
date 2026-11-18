@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# excecoes-dados.txt — os arquivos que casam com um padrão da trava de dados e
+# mesmo assim podem ficar no repositório, um por linha, com o motivo escrito.
+#
+# POR QUE ESTA LISTA EXISTE
+#   Até a Sessão H4-D a trava só olhava arquivo Adicionado, Copiado ou Renomeado
+#   (--diff-filter=ACR). MODIFICADO ficava de fora, e docs/mockup-export-v2.xlsx
+#   está rastreado: dava para sobrescrever esse mockup com a planilha real de uma
+#   festa, mantendo o mesmo nome, e nem o hook nem a esteira diziam uma palavra.
+#   Agora o filtro inclui M — e, para que isso não recuse todo commit que encosta
+#   num arquivo de dado legítimo já rastreado, a exceção passa a ser explícita,
+#   versionada e justificada. Aqui.
+#
+# FORMATO — duas partes obrigatórias, nesta ordem:
+#
+#   # motivo, em português, dizendo por que este arquivo é legítimo
+#   <sha1-do-conteúdo-aprovado> <caminho/dentro/do/repo>
+#
+#   A linha IMEDIATAMENTE acima da entrada tem de ser um comentário. Não é
+#   convenção de boa vontade: scripts/trava-dados.sh recusa a entrada e barra o
+#   commit se o motivo não estiver escrito ali. Exceção sem motivo não entra.
+#
+#   O caminho é tudo o que vem depois do primeiro espaço — então caminho com
+#   espaço no nome funciona sem aspas.
+#
+# POR QUE A EXCEÇÃO É PELO CONTEÚDO, E NÃO SÓ PELO CAMINHO
+#   Uma exceção por caminho ("docs/mockup-export-v2.xlsx pode") devolveria
+#   exatamente o buraco que acrescentar o M veio fechar: o mockup passaria a ser
+#   um portão aberto de tamanho permanente, e trocar o conteúdo dele pela planilha
+#   real da festa voltaria a passar calado. Por isso a exceção vale para AQUELE
+#   conteúdo, identificado pelo sha1 do blob. Se o arquivo mudar, o hash muda e a
+#   trava barra de novo — que é justamente o aviso que a gente quer.
+#
+#   Trocar o conteúdo de propósito é legítimo e o caminho é este: atualize o hash
+#   nesta lista, no MESMO commit, com o motivo. A troca vira uma linha de diff que
+#   qualquer revisor enxerga — bem melhor do que um --no-verify, que não deixa
+#   rastro nenhum no repositório.
+#
+#   E ISSO VALE NOS DOIS LADOS, desde 25/07/2026. Até então o "no MESMO commit"
+#   que a recusa ensina só funcionava no hook: quando DOIS commits do mesmo push
+#   mexiam neste arquivo, cada um atualizando o hash junto, o hook aprovava os dois
+#   (cada um contra a sua própria lista) e a esteira reprovava o primeiro, porque
+#   ela só conhecia a lista do TOPO — que já tinha o hash do segundo. Hook verde,
+#   esteira vermelha, seguindo à risca o caminho ensinado. Agora um conteúdo é
+#   aprovado se estiver na lista do topo OU na lista do commit que o introduziu,
+#   e os dois lugares funcionam. O que continua barrado — de propósito — é o
+#   commit sujo que troca o mockup pela planilha real sem tocar nesta lista, mesmo
+#   que um commit seguinte "conserte" o arquivo: aquele conteúdo não está aprovado
+#   em lugar nenhum, e é isso que a esteira reclama.
+#
+# COMO DESCOBRIR O HASH DE UM ARQUIVO
+#       git hash-object caminho/do/arquivo
+#
+# Um mesmo caminho pode ter VÁRIAS linhas (vários conteúdos aprovados) — útil
+# quando um mockup é regerado e as duas versões seguem válidas no histórico.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# Mockup de documentação aprovado pelo Marco (spec visual de 21/07/2026, commit
+# 860b495, entrou com --no-verify sancionado) e regerado a partir do writer real
+# em 2d3c5c4 para espelhar o produto atual. É layout de exemplo: não tem número
+# de festa real nenhum, foi conferido arquivo e histórico. Serve de referência
+# visual do export v2 na documentação, por isso mora no repo.
+bab8773645b7da3c9d4b3faf92e05ff252dd5e70 docs/mockup-export-v2.xlsx

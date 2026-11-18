@@ -1,0 +1,42 @@
+#!/bin/sh
+# .githooks/pre-push — porteiro local do push (Tema 1, opção A).
+# Roda o MESMO scripts/portao-golden.sh do commit-msg e do CI, no modo
+# --intervalo, sobre cada ref que está saindo — inclusive force-push
+# (commits reescritos são SHAs novos e entram no rev-list).
+# O que NÃO cobre (declarado): push --no-verify; outra máquina/clone sem
+# core.hooksPath; rebobinar branch sem commit novo (range vazio); edição
+# pelo site do GitHub.
+#
+# BASE INEXISTENTE NO CLONE — o texto que estava aqui ensinava o CONTRÁRIO do
+# que os dois scripts fazem, e foi corrigido na junção portão+guarda
+# (25/07/2026). Ele dizia "o script confere só o commit do topo (comportamento
+# já embutido no portao-golden.sh:96-115)". Nada disso vale mais, e as linhas
+# 96-115 citadas também já não são esse trecho — comentário que aponta número
+# de linha envelhece sozinho. O que vale hoje, quando o git manda quarenta
+# zeros (ramificação nova, force-push, clone raso):
+#   · scripts/portao-golden.sh  descobre a base no ancestral comum com
+#     origin/main (e, se não houver, main) e confere os commits novos da
+#     ramificação; sem ramo principal no clone, ele RECUSA dizendo o comando —
+#     nunca aprova sem olhar (decisão do Marco, item 15).
+#   · scripts/trava-dados.sh    confere todo commit do topo que ainda não está
+#     em nenhuma outra ref deste clone, e diz em voz alta qual recorte usou.
+# Os dois estão provados, rodando, em scripts/portao-teste.sh.
+#
+# TRAVA DE DADOS TAMBÉM AQUI (Sessão H4-D, 25/07/2026). O pre-commit confere um
+# commit de cada vez; este confere o PUSH INTEIRO, que é o recorte em que o
+# problema aparece: numa branch nova o remote_sha vem 0000000, e é exatamente aí
+# que a esteira do GitHub também recebe before=0000000. scripts/trava-dados.sh
+# resolve esse caso sozinho (confere todo commit que ainda não está em outra ref
+# deste clone), então o hook e o CI passam a errar — ou acertar — juntos.
+# ATENÇÃO ao limite: num clone recém-feito NENHUM hook está ativo até rodar
+# `git config core.hooksPath .githooks`. Esta linha é uma segunda rede na máquina
+# de quem já instalou os hooks, nunca a rede principal — a rede principal é a
+# esteira, que roda a mesma trava e não depende da configuração de ninguém.
+ZERO=0000000000000000000000000000000000000000
+codigo=0
+while read local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue   # apagando branch remota: nada a conferir
+  ./scripts/portao-golden.sh --intervalo "$remote_sha" "$local_sha" || codigo=1
+  sh ./scripts/trava-dados.sh --intervalo "$remote_sha" "$local_sha" || codigo=1
+done
+exit $codigo

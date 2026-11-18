@@ -1,0 +1,36 @@
+{
+  "name": "previsao-eventos",
+  "private": true,
+  "engines": {
+    "node": "^20.0.0 || >=22.0.0"
+  },
+  "version": "1.0.0",
+  "description": "Local-first event P&L forecasting app (React 19 + Vite + Tailwind + Vitest)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "prepare": "sh .githooks/ligar-trava.sh",
+    "dev": "vite",
+    "build": "sh scripts/com-fila.sh vite build",
+    "preview": "vite preview",
+    "test": "sh scripts/com-fila.sh vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "lucide-react": "^1.25.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.2",
+    "@vitejs/plugin-react": "^4.6.0",
+    "jsdom": "29.1.1",
+    "tailwindcss": "^4.1.11",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}

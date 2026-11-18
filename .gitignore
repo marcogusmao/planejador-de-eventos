@@ -1,0 +1,92 @@
+node_modules
+dist
+.DS_Store
+
+# Dados reais nunca vão para o git (regra do CLAUDE.md: backups JSON de
+# dados reais e planilhas de eventos ficam fora do repositório)
+importacoes/
+importações/
+*.backup.json
+*.xlsx
+*.xls
+
+# Sessão H4-D (25/07/2026) — as redes que faltavam aqui. Este arquivo é a
+# PRIMEIRA barreira (evita o acidente de `git add .`); scripts/padroes-dados.txt,
+# lido pela trava, é a segunda (segura até `git add -f`). As duas passam a cobrir
+# o mesmo conjunto: o que o app realmente gera e o que o importador realmente lê.
+#
+# CSV: as três famílias que o próprio app baixa com dinheiro de festa —
+# contador-*.csv e pagamentos-*.csv (src/lib/exportPagamentos.js) e plano-*.csv
+# (src/lib/planoFinanceiro.js). Nenhum CSV legítimo estava rastreado quando esta
+# linha entrou (conferido com git ls-files), então o custo hoje é zero.
+*.csv
+# Planilha que o SheetJS lê igual a .xlsx — o importador aceita as duas por
+# arrastar-e-soltar, que ignora o accept do <input> — mais o formato nativo do
+# Mac do Marco e o do LibreOffice/Google Sheets.
+*.xlsm
+*.xlsb
+*.numbers
+*.ods
+# JSON pelo nome que o app CARIMBA, nunca pela extensão (extensão pura levaria
+# package.json e .claude/launch.json junto). Cobre o backup manual
+# (previsao-eventos-backup-<data>.json, storage.js:297) E o despejo de quarentena
+# (previsao-eventos-BRUTO-ILEGIVEL-<carimbo>.json, storage.js:139), que escapava
+# da linha antiga porque o nome dele não tem a palavra "backup".
+#
+# O [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] é o carimbo AAAA-MM-DD que o app
+# põe em tudo o que ele gera. Entrou em 25/07/2026 no lugar de
+# previsao-eventos-*.json puro, que ignoraria em silêncio um arquivo de PROJETO
+# legítimo — previsao-eventos-icones.json, previsao-eventos-manifesto.json — só
+# por ele começar com o nome do app. Mesmo critério de scripts/padroes-dados.txt.
+previsao-eventos-*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.json
+# O backup que a casca nativa grava AO SAIR: planejador-<AAAA-MM-DD>-<HHMMSS>.json
+# (scripts/appwrap.swift:266, com APP_BACKUP_PREFIXO="planejador" e
+# APP_BACKUP_DIR="backups" no Planejador.app/Contents/Info.plist). É a base
+# INTEIRA do Marco. A linha backups/ abaixo só o protege enquanto ele está na
+# pasta de origem — movido para restaurar, ou copiado para docs/, ele entrava.
+planejador-*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.json
+
+# Defensivo (hardening 2.1, 18/07/2026): este app nem usa banco, mas nenhum
+# arquivo de banco entra no git por engano (ex.: cópia de teste do Financeiro)
+*.db
+*.sqlite
+*.sqlite3
+backups/
+_to_delete_audit_src.tgz
+_to_delete/
+
+# Token da ponte com o Financeiro (hardening 2 — H2-B, 18/07/2026): o token
+# vive no localStorage do navegador, não em arquivo — mas por segurança
+# nenhum arquivo com "token" no nome ou *.secret entra neste git (nenhum
+# arquivo de CÓDIGO usa esses nomes, de propósito).
+token_ponte.txt
+*token*
+*.secret
+previsao-app.log
+servidor.log
+
+# Grafo de conhecimento (graphify, 24/07/2026): saída GERADA e volumosa
+# (~7 MB: graph.json + graph.html). Reconstrói-se com `/graphify`; o recorte
+# do corpus fica versionado em .graphifyignore, que é o que importa guardar.
+graphify-out/
+
+# Ferramentas de IA vendorizadas (impeccable, 24/07/2026): ~380 arquivos de
+# terceiro que se reinstalam com `npx impeccable install`. Não versionar —
+# poluiriam o histórico do app com código que não é nosso. Atenção: aqui o
+# `.claude/` NÃO pode ser ignorado em bloco, porque launch.json e as 5 skills
+# da casa são versionadas de propósito. Por isso as entradas são cirúrgicas.
+.claude/skills/impeccable/
+.claude/worktrees/
+# Cache de crítica visual da mesma ferramenta (apareceu em 28/07/2026:
+# .impeccable/critique/ + hook.cache.json na raiz). É saída regenerável de
+# sessão, como graphify-out/ — não conta história do app.
+.impeccable/
+.github/skills/
+.github/hooks/
+.agents/skills/
+.codex/hooks.json
+
+# Workspace multi-raiz do VS Code: config pessoal de editor que aponta para
+# pastas IRMÃS (Financeiro, O Galeao, Marfim...). Num clone limpo esses
+# caminhos não existem, então o arquivo não serve para mais ninguém.
+previsao-eventos.code-workspace

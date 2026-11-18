@@ -1,0 +1,21 @@
+# Recorte do corpus do grafo de conhecimento (graphify).
+#
+# DECISAO DA SESSAO DE GRAFO (24/07/2026), NAO do Marco — tomada sob a regra de
+# autonomia e registrada aqui para ele poder desfazer numa linha.
+#
+# MOTIVO: o grafo tem de falar sobre O APP (src/, docs de contrato, scripts,
+# hooks), nunca sobre o ferramental de IA. As pastas abaixo carregam TRES COPIAS
+# identicas da mesma skill "impeccable" — 386 arquivos, 249 deles .mjs. Sem este
+# recorte o corpus salta de 242 para 627 arquivos e a deteccao de comunidades
+# passa a descrever a skill triplicada em vez do app.
+#
+# O QUE O MARCO PERDE SE EU ESTIVER ERRADO: o grafo nao responde perguntas sobre
+# o proprio ferramental de IA (hooks, skills, agentes). Se ele quiser isso algum
+# dia, basta apagar a linha correspondente e rodar `/graphify` de novo.
+.agents/
+.claude/
+.github/skills/
+.codex/
+
+# Saida do proprio graphify (nao se auto-indexa)
+graphify-out/

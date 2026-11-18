@@ -1,0 +1,421 @@
+@import "tailwindcss";
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Planejamento de Eventos — linguagem visual da casa (Sessão K · 19/07/2026)
+   Direção: branding book Sobrado — off-white #f0ebe7, azul #0045dd, acentos
+   rosa/amarelo/verde/vermelho; Futura (sistema) → Jost (vendorizada, OFL);
+   régua de acabamento Stripe/Brex/Puzzle/Linear — "bem clean".
+   Mesmos tokens do Financeiro (static/css/app.css): os dois apps são
+   da mesma casa e devem parecer da mesma casa.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Jost — fonte variável (100–900), licença SIL OFL 1.1.
+   Fonte da verdade: src/assets/fontes/Jost-var.ttf + OFL.txt (vendorizada,
+   sem CDN — o app é offline por design). No macOS a Futura do sistema vem
+   primeiro na pilha; a Jost é a substituta fiel (desenhada como homenagem à
+   Futura) nas demais máquinas. */
+@font-face {
+  font-family: 'Jost';
+  src: url('./assets/fontes/Jost-var.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Futura', 'Jost', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Tokens CLAROS: o padrão do app (:root) E de qualquer ILHA forçada a claro
+   (`[data-theme='light']` — hoje só o container do relatório/PDF). Listar os
+   dois juntos é o conserto ESTRUTURAL do item 1 da F2-W (correção de raiz):
+   antes, o relatório punha `data-theme="light"` num DIV filho, mas nenhuma
+   regra redefinia os tokens ali — então `--tinta`, `--borda` etc. desciam do
+   `:root[data-theme='dark']` do <html> por herança e o texto saía off-white
+   sobre papel branco (ilegível). Declarando os tokens claros TAMBÉM em
+   `[data-theme='light']`, o próprio div passa a ter os valores claros e vence a
+   herança para toda a sua subárvore — o relatório é claro por completo, e
+   qualquer token novo que ele venha a usar nasce claro (mata o vazamento atual
+   e os futuros). O tema ESCURO segue em `:root[data-theme='dark']` (só o
+   <html>), e a impressão em @media print (ambos abaixo). Decisão estrutural
+   assumida: relatório/impressão é SEMPRE claro; querer relatório escuro um dia
+   é escolha nova, não bug. */
+:root,
+[data-theme='light'] {
+  /* superfícies — mesmos valores do Financeiro (família) */
+  --fundo: #f0ebe7; /* off-white da marca — nunca branco puro */
+  --papel: #fbf9f7; /* cartões */
+  --papel-2: #f6f2ed; /* zebra, campos, hover */
+  --tinta: #211f1c; /* texto principal (preto quente) */
+  --tinta-2: #6c675e; /* texto secundário */
+  --tinta-3: #9b958a; /* rótulos, apoio */
+  --borda: rgba(33, 31, 28, 0.1);
+  --borda-2: rgba(33, 31, 28, 0.18);
+
+  /* marca (paleta oficial do branding book, pág. 10) */
+  --azul: #0045dd;
+  --azul-hover: #0038b4;
+  --azul-tinta: rgba(0, 69, 221, 0.07);
+  --rosa: #fb9fc6;
+  --amarelo: #fecd07;
+  --verde: #00782a;
+  --vermelho: #ff000c;
+  /* variantes seguras para TEXTO sobre o off-white */
+  --verde-texto: #00782a;
+  --vermelho-texto: #c9000a;
+  --ambar-texto: #8a6a00;
+  --rosa-texto: #b8437d;
+  --azul-texto: #0038b4; /* azul de TEXTO (carimbo do Financeiro, badge "importado", FECHADO) */
+
+  /* "Tarja de alerta" (B3, BACKLOG S4, 20/07/2026): par tema-aware para
+     mensagens de erro/aviso (import, formulários, dossiês). Troca as
+     utilities FIXAS do Tailwind (`bg-red-50`, `border-red-200/300/400`,
+     `text-red-700/800`) que não têm par no escuro — no dark viravam uma
+     barra CLARA por cima do papel escuro. Mesma receita que a FAIXA_ESTOURO
+     do Fechamento já usa (vermelho da marca com alfa sobre o papel); o
+     TEXTO reaproveita `--vermelho-texto`, que já é tema-aware e passa AA
+     nos dois temas. `--vermelho` não muda entre temas (como já era), então
+     um valor só cobre claro e escuro — igual ao próprio `--vermelho`. */
+  --tarja-alerta-fundo: rgba(255, 0, 12, 0.07);
+  --tarja-alerta-borda: rgba(255, 0, 12, 0.25);
+
+  /* acento do app (sugestão 26): editável em Ajustes › Aparência; nasce no
+     azul da marca. O SEMÁFORO fica FORA desta variável de propósito. */
+  --acento: #0045dd;
+  --acento-hover: #0038b4;
+  --acento-tinta: rgba(0, 69, 221, 0.07);
+
+  /* Estado ATIVO/selecionado (chip · pill · toggle · segmented): superfície
+     INVERTIDA do papel + texto que a acompanha. Par de tokens porque o "ativo"
+     precisa inverter junto com o tema — no claro é tinta escura + texto claro;
+     no escuro vira superfície clara + texto escuro (senão fica claro-no-claro,
+     ilegível — bug do print da F2-T/dark). NUNCA use `text-white` fixo no ativo. */
+  --ativo-fundo: #211f1c;
+  --ativo-texto: #fbf9f7;
+
+  /* semáforo — significado, não decoração (verde/amarelo/vermelho falam SÓ
+     a língua do veredito; nunca entram na edição de aparência) */
+  --sem-verde: #00782a;
+  --sem-amarelo: #fecd07;
+  --sem-vermelho: #ff000c;
+
+  /* Texto do card de veredito — par de tokens claro/escuro (item 2, F2-W).
+     O card tinge o fundo com a cor do estado; o TEXTO precisa contrastar no
+     papel claro E no grafite escuro. Os valores CLAROS são os EXATOS de
+     sempre (o tema claro não muda um pixel); os escuros ficam no bloco dark
+     abaixo. O card VERMELHO no escuro estava ilegível (texto vermelho-escuro
+     sobre grafite) — este é o conserto; verde/amarelo ganham o par por
+     coerência, com o mesmo valor claro de antes. */
+  --veredito-verde-texto: #005c20;
+  --veredito-amarelo-texto: #6e5500;
+  --veredito-vermelho-texto: #a30008;
+
+  /* números: dígitos tabulares confiáveis (a Futura do sistema não garante
+     tnum) — mesma decisão do Financeiro: título com alma, DRE alinhado */
+  --fonte-num: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
+  --sombra-1: 0 1px 2px rgba(33, 31, 28, 0.04);
+  --sombra-2: 0 4px 16px rgba(33, 31, 28, 0.08);
+}
+
+/* A ilha clara reancora a COR de texto base (item 1, F2-W). `color` é herdado
+   como VALOR JÁ RESOLVIDO (não como referência a var): um elemento sem classe
+   de cor — o <h1> do relatório, por exemplo — herda o `color` do <body>, que
+   resolveu `var(--tinta)` no ESCURO (off-white). Só trocar os tokens acima não
+   basta para esses casos; é preciso reancorar `color: var(--tinta)` na própria
+   ilha, onde --tinta já é a tinta escura sobre papel. O fundo continua vindo do
+   `bg-white` do container do relatório. */
+[data-theme='light'] {
+  color: var(--tinta);
+}
+
+/* ── Tema ESCURO (sugestão 31 / tema G, F2-P): SEGUNDO conjunto de tokens ──────
+   Não recolore tela a tela — o chrome usa var(--*), então trocar os tokens vira
+   o app inteiro. Dirigido por data-theme no <html> (JS: claro/escuro/automático,
+   ver aparencia.js). Off-white vira GRAFITE QUENTE do book; tinta vira off-white.
+   Semáforo e cores de festa mantêm SIGNIFICADO com contraste AA (subem para
+   versões vivas no escuro). Relatório e impressão seguem CLAROS por padrão
+   (data-theme="light" no root do relatório + @media print abaixo). */
+:root[data-theme='dark'] {
+  --fundo: #1b1916;
+  --papel: #24211d;
+  --papel-2: #2c2823;
+  --tinta: #f0ebe7;
+  --tinta-2: #b7b1a5;
+  --tinta-3: #978f82; /* clareado no escuro: agora ≥4.5:1 (AA) mesmo sobre cartão/zebra */
+  --borda: rgba(240, 235, 231, 0.12);
+  --borda-2: rgba(240, 235, 231, 0.22);
+
+  /* Acento do tema ESCURO — azul da marca, escurecido para o texto branco do
+     botão principal fechar a régua de contraste (Marco, 12/08/2026, por
+     questionário; é COR DE MARCA, por isso foi decisão dele e não faxina).
+
+     MEDIDO, não estimado (as três contas, contra branco puro):
+         #4d7dff  (o que estava aqui) ....... 3,69:1   abaixo da régua
+         #3a6bff  (o exemplo da pergunta) ... 4,44:1   TAMBÉM não fecha
+         #456fe3  (o que ficou) ............. 4,53:1   fecha
+
+     O exemplo posto na pergunta ao Marco dizia "~4,5:1" e não chegava lá — ele
+     aprovou ESCURECER para fechar a régua, e um azul que não fecha entregaria
+     a mudança sem o efeito que ela existe para ter. O valor escolhido é o azul
+     MAIS CLARO (portanto o mais perto da marca) que ainda fecha, achado
+     multiplicando os três canais do #4d7dff por 0,891 — o matiz não é torcido,
+     só o brilho cai.
+
+     O tema CLARO (--acento: #0045dd) NÃO é tocado: ele já fecha com folga.
+     O --acento-hover fica mais claro que o acento de propósito, como sempre
+     foi; ele é estado transitório e não é o que a régua cobra.
+
+     E isto muda só o VALOR DE FÁBRICA: quem já personalizou a cor em
+     Ajustes › Aparência continua com a dele. Escolha do dono não se
+     sobrescreve. */
+  --acento: #456fe3;
+  --acento-hover: #6b93ff;
+  --acento-tinta: rgba(69, 111, 227, 0.14);
+
+  /* estado ATIVO invertido para o escuro: superfície CLARA + texto ESCURO —
+     é o que conserta pela raiz o chip/pill/toggle/segmented selecionado que
+     antes usava text-white sobre a tinta clara do escuro (ilegível). */
+  --ativo-fundo: #f0ebe7;
+  --ativo-texto: #1b1916;
+
+  /* variantes de TEXTO seguras sobre o grafite (AA) */
+  --verde-texto: #4ec77f;
+  --vermelho-texto: #ff6b73;
+  --ambar-texto: #e6be52;
+  --rosa-texto: #f0a8cc;
+  --azul-texto: #7ba0ff; /* azul de texto claro no escuro (dark-blue fixo sumia no grafite) */
+
+  /* semáforo — significado, vivo no escuro (o amarelo já contrasta) */
+  --sem-verde: #2fbf6b;
+  --sem-amarelo: #fecd07;
+  --sem-vermelho: #ff5a63;
+
+  /* Texto do veredito no escuro (item 2, F2-W): versões vivas AA sobre o
+     grafite, na família dos demais tokens de texto do dark. O vermelho é o
+     que estava quebrado — sobe para um vermelho claro legível. */
+  --veredito-verde-texto: #5fd08a;
+  --veredito-amarelo-texto: #e6be52;
+  --veredito-vermelho-texto: #ff8a90;
+
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sombra-2: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--tinta);
+}
+
+::selection {
+  background: rgba(0, 69, 221, 0.14);
+}
+
+/* números de dinheiro: tabulares, alinhados como soldados (régua Puzzle) */
+.tnum {
+  font-family: var(--fonte-num);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* foco visível nível Linear — teclado nunca se perde */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input[type='checkbox']:focus-visible,
+input[type='range']:focus-visible {
+  /* `input[type='date']` saiu daqui em 05/08/2026: não existe mais nenhum no
+     app — as 8 portas de data passaram para o CampoData, que é um campo de
+     texto e já pega a regra de foco dos campos de texto. Seletor que aponta
+     para o que não existe é a mesma família de prosa que envelhece calada. */
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--acento);
+}
+
+/* ── Tabelas de custo do relatório: GRADE ÚNICA + reflow (tema B, F2-P) ──────
+   Todas as tabelas empilhadas do relatório (custos por categoria, comparação)
+   usam a MESMA grade fixa de colunas — as colunas nunca "dançam" de uma
+   categoria para outra. Hierarquia de sacrifício: o NOME DO SERVIÇO é a
+   identidade da linha e nunca encolhe abaixo do legível; quem cede primeiro é
+   Fornecedor (trunca com …), depois as numéricas.
+   Em tela ESTREITA (celular — o relatório vira PDF de WhatsApp) a linha REFLUI:
+   nome em cima com largura toda, valores rotulados embaixo — nunca espreme. */
+table.tabela-relatorio {
+  table-layout: fixed;
+  width: 100%;
+}
+.trunca-celula {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  table.tabela-reflui thead {
+    display: none;
+  }
+  table.tabela-reflui tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 0.5rem;
+    row-gap: 0.1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--borda);
+  }
+  table.tabela-reflui td {
+    display: block;
+    border: 0 !important;
+    padding: 0 !important;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  /* nome do serviço: linha inteira, em cima, com peso — a identidade da linha */
+  table.tabela-reflui td.celula-nome {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+  /* rótulo do dado embaixo, para o número não ficar órfão sem cabeçalho */
+  table.tabela-reflui td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: 10px;
+    color: var(--tinta-3);
+  }
+  table.tabela-reflui td[data-rotulo] {
+    text-align: left !important;
+  }
+}
+
+/* A matriz mantém as mesmas faixas na prévia e no papel. */
+.faixa-matriz-relatorio { margin-bottom: 12px; }
+.rolagem-matriz-relatorio { overflow-x: auto; }
+.matriz-relatorio {
+  width: 100%;
+  table-layout: fixed;
+  min-width: var(--largura-minima-matriz);
+}
+.matriz-relatorio th,
+.matriz-relatorio td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  /* impressão SEMPRE clara (tema G): mesmo com o app no escuro, o papel volta
+     aos tokens claros — texto off-white sobre papel branco sumiria. */
+  :root[data-theme='dark'] {
+    --fundo: #f0ebe7;
+    --papel: #fbf9f7;
+    --papel-2: #f6f2ed;
+    --tinta: #211f1c;
+    --tinta-2: #6c675e;
+    --tinta-3: #9b958a;
+    --borda: rgba(33, 31, 28, 0.1);
+    --borda-2: rgba(33, 31, 28, 0.18);
+    --verde-texto: #00782a;
+    --vermelho-texto: #c9000a;
+    --ambar-texto: #8a6a00;
+    --rosa-texto: #b8437d;
+  }
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+
+  /* ── Item 2 do QA de PDF do Marco (F2-Y): gráficos e barras SAEM no PDF ─────
+     Por padrão o navegador não imprime cores de FUNDO (economia de tinta) — e
+     as barras da "Comparação com eventos passados" (HBars), os dots de cenário,
+     a bola do veredito e os acentos são feitos de background/preenchimento.
+     Sem esta regra eles somem no PDF (bug do QA do Marco). `print-color-adjust:
+     exact` obriga a imprimir a cor exatamente como na tela. Aplicado ao root e,
+     à prova de reset de UA, a TODO elemento — assim nenhuma barra/gráfico some.
+     (As larguras das barras são % do contêiner, que tem largura definida no
+     papel; não dependem de medida que zera no print.) */
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── Item 1 do QA de PDF do Marco (F2-Y): controle de quebra de página ──────
+     No PDF impresso, nada de dado partido no meio. Cada SEÇÃO e cada TABELA
+     tentam ficar inteiras numa página; o TÍTULO de seção nunca fica órfão no
+     rodapé (fica junto do conteúdo que ele abre); e quando uma tabela é maior
+     que a página, ela quebra SÓ ENTRE LINHAS, com o cabeçalho repetido no topo
+     de cada página. `break-inside: avoid` é preferência — quando o bloco não
+     cabe de jeito nenhum (DRE longo, categoria gigante), o navegador cede e
+     quebra entre linhas/filhos, que já têm avoid próprio. Mantém `page-break-*`
+     legado ao lado do moderno para o motor de impressão do Chrome. */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* cabeçalho da tabela repete quando ela quebra entre páginas */
+  thead {
+    display: table-header-group;
+  }
+  /* a linha da tabela nunca parte no meio (quebra é sempre ENTRE linhas) */
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* blocos marcados como indivisíveis (cards de cenário, gráfico, "Como ler",
+     categoria de custo) seguem inteiros — reforça o utilitário do Tailwind */
+  .break-inside-avoid,
+  svg,
+  figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .comparacao-relatorio {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .faixa-matriz-relatorio,
+  .matriz-relatorio {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .rolagem-matriz-relatorio {
+    overflow: visible;
+    width: 100%;
+  }
+  .matriz-relatorio {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

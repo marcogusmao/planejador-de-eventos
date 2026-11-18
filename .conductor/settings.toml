@@ -1,0 +1,95 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Conductor — Previsão de Eventos
+#
+# ATENÇÃO: o Conductor só enxerga mudanças neste arquivo depois que elas chegam
+# na main do GitHub. Editar e não dar push = nada acontece.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[scripts]
+setup = "sh scripts/conductor-setup.sh"
+archive = "rm -f /tmp/conductor-npm.log /tmp/conductor-vitest.log"
+run_mode = "concurrent"
+
+[scripts.run.dev]
+command = "npm run dev -- --port $CONDUCTOR_PORT --strictPort"
+default = true
+icon = "play"
+
+[scripts.run.testes]
+command = "npx vitest run"
+icon = "test-tube"
+
+[scripts.run."testes vigiando"]
+command = "npx vitest"
+icon = "monitor"
+
+[scripts.run."portao de aceite"]
+command = "sh scripts/portao-teste.sh"
+icon = "shield"
+
+[scripts.run.build]
+command = "npm run build"
+icon = "package"
+
+[git]
+delete_branch_on_archive = true
+archive_on_merge = true
+worktree_push_auto_setup_remote = true
+
+[prompts]
+general = """
+Você está num workspace do Conductor: um git worktree de um clone limpo, NÃO a
+pasta ~/Desktop/Dev/previsao-eventos do Marco.
+
+O que isso muda, e que o CLAUDE.md não tem como saber:
+
+1. A PONTE COM O FINANCEIRO NÃO FUNCIONA AQUI. O Financeiro só libera CORS para
+   http://localhost:4173 (ORIGEM_PREVISAO, cravado em backend/config.py de lá),
+   e este workspace roda em $CONDUCTOR_PORT. Isso é de propósito: um workspace
+   não deve conversar com o app de dinheiro do Marco. Se a tarefa exigir testar
+   a ponte de verdade, ela não é tarefa de workspace — é tarefa no Desktop, e
+   você deve dizer isso em vez de tentar contornar mudando a porta ou o CORS.
+
+2. Use `npm ci`, nunca `npm install`. package-lock.json está no PADRAO_PORTAO
+   do scripts/portao-golden.sh: se o lock for reescrito, o portão barra o
+   commit e o motivo fica obscuro.
+
+3. A trava de dados foi ligada pelo setup e PROVADA com isca. Não mexa em
+   core.hooksPath.
+
+4. O portão do golden vale igual aqui: src/lib/calc.js, src/lib/golden.test.js
+   e os outros arquivos do PADRAO_PORTAO só entram em commit com a linha
+   APROVADO-PELO-MARCO: dd/mm/aaaa motivo. Essa aprovação é do Marco, obtida
+   ANTES, com diff em português dos valores antigos × novos. Nunca sua.
+   `--no-verify` convence a máquina local; não convence o CI.
+
+5. Teto de frentes paralelas: 2 a 3. Se você perceber que outro workspace está
+   mexendo nos mesmos arquivos do contrato da ponte, regra de escritor único —
+   uma frente escreve, a outra só lê. Diga isso ao Marco em vez de resolver
+   sozinho.
+
+6. Termine com evidência rodada, não afirmação: a saída de `npx vitest run`
+   colada, não a frase "os testes passam".
+"""
+
+code_review = """
+Revise este diff tentando REFUTAR que está certo, não confirmar. Prioridades
+desta casa, nesta ordem: (1) número errado exibido como certo; (2) dinheiro em
+float onde devia ser inteiro de centavos; (3) paridade quebrada entre os dois
+lados de um espelho de cálculo; (4) dado real vazando para git ou log; (5)
+catch que engole erro; (6) escopo que vazou do pedido. Cite arquivo:linha.
+Achado real vira teste antes de virar correção. Severidade S1–S4 do CLAUDE.md;
+na dúvida entre dois níveis, o menor, explicando. Se o diff tocar qualquer
+arquivo do PADRAO_PORTAO, isso é achado por si só até que a linha
+APROVADO-PELO-MARCO esteja na mensagem do commit.
+"""
+
+create_pr = """
+Título e descrição em português. A descrição diz, nesta ordem: o que mudou de
+COMPORTAMENTO visível (não que arquivo mudou), qual evidência foi rodada para
+provar (cole a saída do vitest), e o que NÃO foi tocado de propósito. Se algum
+arquivo do portão mudou, a descrição abre com o diff em português dos valores
+antigos × novos e a data da aprovação do Marco.
+"""
