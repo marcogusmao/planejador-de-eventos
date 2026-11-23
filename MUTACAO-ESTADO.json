@@ -1,0 +1,101 @@
+{
+  "versao": 1,
+  "_leia": "Ponto de parada da bateria de mutação (scripts/mutacao.mjs). Diz quais pontos JÁ foram exercitados, para a rodada seguinte pegar pontos DIFERENTES. Gerado por script — não edite à mão. Apagar este arquivo não quebra nada: só recomeça a cobertura do zero.",
+  "ciclo": 1,
+  "rodadas": 1,
+  "atualizadoEm": "2026-11-23 21:49:24 (UTC)",
+  "arquivos": {
+    "calc.js": {
+      "sha": "54e7edf285a789e5",
+      "cobertos": [
+        "20:=== → !==:0",
+        "20:=== → !==:1"
+      ]
+    },
+    "fechamento.js": {
+      "sha": "db9af364595b2d79",
+      "cobertos": [
+        "144:- → +:0",
+        "145:> → >=:0"
+      ]
+    },
+    "planoFinanceiro.js": {
+      "sha": "95db296992a09d78",
+      "cobertos": [
+        "118:+ → -:0",
+        "120:- → +:0"
+      ]
+    },
+    "dre.js": {
+      "sha": "d91f7d6bebbb97f5",
+      "cobertos": [
+        "41:- → +:0",
+        "56:< → <=:0"
+      ]
+    },
+    "comparacaoCustos.js": {
+      "sha": "9bf1e5cb08fe3e73",
+      "cobertos": [
+        "182:* → /:0",
+        "182:Math.round → Math.floor:0"
+      ]
+    },
+    "receitaLiquida.js": {
+      "sha": "4a4b5f0ab9d46d9e",
+      "cobertos": [
+        "42:=== → !==:0",
+        "43:* → /:0"
+      ]
+    },
+    "precoLote.js": {
+      "sha": "1378bbb44982aaea",
+      "cobertos": [
+        "13:+ → -:0",
+        "20:* → /:0"
+      ]
+    },
+    "simulador.js": {
+      "sha": "ea5a22e0d05d564b",
+      "cobertos": [
+        "29:- → +:0",
+        "35:- → +:0"
+      ]
+    },
+    "historico.js": {
+      "sha": "86d1c7e21a3e4b57",
+      "cobertos": [
+        "98:> → >=:0"
+      ]
+    },
+    "protecao.js": {
+      "sha": "a113d6d7ce0e4aea",
+      "cobertos": [
+        "77:< → <=:0"
+      ]
+    },
+    "storage.js": {
+      "sha": "75f04f841a9b2e1f",
+      "cobertos": [
+        "98:=== → !==:0"
+      ]
+    },
+    "migracao.js": {
+      "sha": "8788945414748ba8",
+      "cobertos": [
+        "130:=== → !==:0"
+      ]
+    }
+  },
+  "historico": [
+    {
+      "rodada": 1,
+      "em": "2026-11-23 21:49:24 (UTC)",
+      "commit": "22b312f",
+      "ciclo": 1,
+      "exercitadas": 20,
+      "mortas": 19,
+      "sobreviveram": 1,
+      "erros": 0
+    }
+  ]
+}
